@@ -21,3 +21,5 @@ Status: ✅ shipped in [`kit/`](../kit) · 🔜 next · 💡 later.
 | 14 | Slideshow-risk lint on scene plans (> 60 % text cards fails, `shot_intent` per scene) | Fewer static scenes | S | OpenMontage | 💡 |
 | 15 | Character blink & breath, anticipation, overlap | Life in figures | M | ClaudeAnimationBase | 💡 |
 | 16 | Offline duration estimate (EN 4.6 syll/s) before TTS | Faster scripting | S | hypit `speech-estimate` | 💡 |
+| 17 | Mouth envelope for talking characters (95th-pct normalised, breath floor) | Lip-sync without phonemes | S | reels-sistemi `genlik.py` | ✅ `mouth-envelope.py` |
+| 18 | Hook wording rules + hook-first post caption, comment prompt, 3:4 cover crop | Stop-scroll & reach | S | reels-sistemi SKILL.md | ✅ checklist |

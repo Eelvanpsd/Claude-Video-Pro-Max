@@ -19,3 +19,6 @@
 [submodule "repos/OpenMontage"]
 	path = repos/OpenMontage
 	url = https://github.com/calesthio/OpenMontage.git
+[submodule "repos/reels-sistemi"]
+	path = repos/reels-sistemi
+	url = https://github.com/yapaytu/reels-sistemi.git

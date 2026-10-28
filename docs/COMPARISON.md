@@ -25,3 +25,4 @@
 5. **OpenMontage** — QA thresholds and production checklists (ideas only, AGPL).
 6. **onetake** — motion blur and measured QA (ideas only, non-commercial).
 7. **gbro-collage-broll** — paid core; workflow ideas only.
+8. **reels-sistemi** (MIT, not in the matrix — small skill) — hook rules, post package, mouth envelope; engine skipped.

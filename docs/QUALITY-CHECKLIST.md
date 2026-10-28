@@ -1,9 +1,11 @@
-# Quality checklist — numbers collected from all seven repos
+# Quality checklist — numbers collected from all eight repos
 
 Use as a pre-delivery gate. Source in brackets.
 
 ## Hook & pacing
 - [ ] Hook in the first 1–2 s; text on screen within 0.5 s *(OpenMontage short-form)*
+- [ ] Hook names the viewer's stake/loss or a big **real** number; no news voice, no "in this video…", no greeting; never reuse an old hook verbatim *(reels-sistemi)*
+- [ ] Frame 0 is never empty — audio may start a few frames late *(reels-sistemi)*
 - [ ] A visual change every 1–3 s; no static hold > 3 s *(OpenMontage)*
 - [ ] …but rests exist: ≥ 25 % dead-still frames and one ≥ 1 s quiet stretch *(onetake)* — balance the two
 - [ ] Shot lengths vary: coefficient of variation ≥ 0.25, no metronome cuts *(onetake)*
@@ -34,6 +36,11 @@ Use as a pre-delivery gate. Source in brackets.
 - [ ] Whoosh starts 10–20 ms *before* the visual, 400–500 ms long *(OpenMontage)*
 - [ ] Don't repeat the same effect on every cut *(hypit)*
 - [ ] No clipping; SFX peaks ≈ −8 dBFS *(onetake)*
+
+## Publishing
+- [ ] Caption line 1 = the hook (it is what shows before "more"); then title, a comment prompt, 3–5 tags; no money/earnings promises *(reels-sistemi)*
+- [ ] Cover: hook text + subject inside the middle 1440 px — the IG profile grid crops to 3:4 *(reels-sistemi)*
+- [ ] First comment repeats the keyword and asks a question *(reels-sistemi)*
 
 ## Post-render verification
 - [ ] ffprobe: video + audio streams, duration within ±5 %, size > 0 *(OpenMontage)*

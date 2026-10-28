@@ -1,6 +1,6 @@
 # Claude Video Pro Max
 
-**A curated, annotated collection of seven open-source repos for raising AI-made video quality — plus a small kit of ready-to-use Remotion pieces distilled from them.**
+**A curated, annotated collection of eight open-source repos for raising AI-made video quality — plus a small kit of ready-to-use Remotion pieces distilled from them.**
 
 Built while upgrading a production pipeline of vertical history shorts (Remotion 4 + hand-written SVG art + local Kokoro narration, no paid APIs, no AI images). Every repo here was cloned, read and judged for that kind of pipeline: what it is, how to run it, which techniques actually move quality, what is free vs paid, and what its license lets you do.
 
@@ -11,7 +11,7 @@ git clone --recurse-submodules https://github.com/Eelvanpsd/Claude-Video-Pro-Max
 
 ---
 
-## The seven repos
+## The eight repos
 
 | # | Repo | What it is | License | Free/local | Verdict | Deep dive |
 |---|---|---|---|---|---|---|
@@ -22,17 +22,18 @@ git clone --recurse-submodules https://github.com/Eelvanpsd/Claude-Video-Pro-Max
 | 5 | [lemomo-ai/lemo-opuscar](https://github.com/lemomo-ai/lemo-opuscar) | 43 code-made film styles, director/technique guides, mastering, ASR checks | MIT | ✅ | ✅ Adopt (best fit) | [docs](docs/repos/05-lemo-opuscar.md) |
 | 6 | [hypit-ai/hypit](https://github.com/hypit-ai/hypit) | Agent video language: timing anchored to words, caption craft, labelled review grids | Modified Apache 2.0 | ✅ core | ✅ Adopt ideas | [docs](docs/repos/06-hypit.md) |
 | 7 | [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) | Agentic production system: 13 pipelines, stage-director skills, post-render self-review | AGPLv3 | ✅ core | 💡 Ideas & thresholds | [docs](docs/repos/07-OpenMontage.md) |
+| 8 | [yapaytu/reels-sistemi](https://github.com/yapaytu/reels-sistemi) | Small Turkish Reels skill: hook rules, word-anchored HTML scenes, mouth envelope, post caption/first comment | MIT | ✅ (voice aside) | 💡 Ideas only | [docs](docs/repos/08-reels-sistemi.md) |
 
 Each repo is included as a **git submodule** under [`repos/`](repos) — pinned to the commit that was reviewed, with its own license intact.
 
 ## What's in here
 
 ```
-repos/                    7 submodules (original code, original licenses)
-docs/repos/01…07-*.md     per-repo deep dive: architecture, run commands, techniques with file paths, free vs paid, what to adopt
+repos/                    8 submodules (original code, original licenses)
+docs/repos/01…08-*.md     per-repo deep dive: architecture, run commands, techniques with file paths, free vs paid, what to adopt
 docs/COMPARISON.md        side-by-side matrix: license, engine, transitions, motion, captions, audio, QA
 docs/ROADMAP.md           16 ideas ranked by quality gain per hour, with status
-docs/QUALITY-CHECKLIST.md pre-delivery gate: every concrete number from all seven repos in one list
+docs/QUALITY-CHECKLIST.md pre-delivery gate: every concrete number from all eight repos in one list
 kit/                      MIT, standalone Remotion pieces + QA tool built from the ideas
 ```
 
@@ -44,6 +45,7 @@ kit/                      MIT, standalone Remotion pieces + QA tool built from t
 | [`kit/remotion/PaperTear.tsx`](kit/remotion/PaperTear.tsx) | Torn-paper wipe for `@remotion/transitions` with fibrous rim and cast shadow |
 | [`kit/remotion/SlamStamp.tsx`](kit/remotion/SlamStamp.tsx) | Dates/numbers that slam in like a seal: 2.4× → 1× in 0.1 s, bounce, jolt, tilt |
 | [`kit/tools/contact-sheet.mjs`](kit/tools/contact-sheet.mjs) | Whole-video contact sheet or per-frame strip of a range, via ffmpeg |
+| [`kit/tools/mouth-envelope.py`](kit/tools/mouth-envelope.py) | Per-frame mouth openness (0–1) from a voice file for talking characters |
 
 ```tsx
 import { LineBoil } from "./kit/remotion/LineBoil";
