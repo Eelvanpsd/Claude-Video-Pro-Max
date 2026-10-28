@@ -1,0 +1,23 @@
+{
+  "name": "@hypit/recipe",
+  "version": "0.0.0-dev",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "dependencies": {
+    "@hypit/source": "workspace:*",
+    "@hypit/kernel": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@hypit/compiler": "workspace:*",
+    "@hypit/markup": "workspace:*"
+  }
+}

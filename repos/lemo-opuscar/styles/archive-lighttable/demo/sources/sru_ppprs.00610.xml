@@ -1,0 +1,350 @@
+<?xml version="1.0"?>
+<zs:searchRetrieveResponse xmlns:zs="http://www.loc.gov/zing/srw/"><zs:version>1.1</zs:version><zs:numberOfRecords>2</zs:numberOfRecords><zs:records><zs:record><zs:recordSchema>marcxml</zs:recordSchema><zs:recordPacking>xml</zs:recordPacking><zs:recordData><record xmlns="http://www.loc.gov/MARC21/slim">
+  <leader>02301ckm a22005177a 4500</leader>
+  <controlfield tag="001">12269430</controlfield>
+  <controlfield tag="005">20250606184308.9</controlfield>
+  <controlfield tag="007">kg||||</controlfield>
+  <controlfield tag="007">cr |||</controlfield>
+  <controlfield tag="008">010104s1903    |||nnn |     |    kneng  </controlfield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">12269430</subfield>
+  </datafield>
+  <datafield tag="906" ind1=" " ind2=" ">
+    <subfield code="a">0</subfield>
+    <subfield code="b">ibc</subfield>
+    <subfield code="c">orignew</subfield>
+    <subfield code="d">u</subfield>
+    <subfield code="e">ncip</subfield>
+    <subfield code="f">20</subfield>
+    <subfield code="g">y-printpho</subfield>
+  </datafield>
+  <datafield tag="955" ind1=" " ind2=" ">
+    <subfield code="a">LCAP batch update 2025-06-01-04:00: LCAPM-861</subfield>
+  </datafield>
+  <datafield tag="010" ind1=" " ind2=" ">
+    <subfield code="a">  2001696253</subfield>
+  </datafield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">(DLC)12269430</subfield>
+  </datafield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">(DLC)  2001696253</subfield>
+  </datafield>
+  <datafield tag="037" ind1=" " ind2=" ">
+    <subfield code="a">LC-DIG-ppprs-00610</subfield>
+    <subfield code="b">DLC</subfield>
+    <subfield code="c">(digital file from original)</subfield>
+  </datafield>
+  <datafield tag="037" ind1=" " ind2=" ">
+    <subfield code="a">LC-W861-19</subfield>
+    <subfield code="b">DLC</subfield>
+    <subfield code="c">(b&amp;w film copy neg.)</subfield>
+  </datafield>
+  <datafield tag="040" ind1=" " ind2=" ">
+    <subfield code="a">DLC</subfield>
+    <subfield code="c">DLC</subfield>
+    <subfield code="e">gihc</subfield>
+  </datafield>
+  <datafield tag="050" ind1="0" ind2="0">
+    <subfield code="a">LC-W86-</subfield>
+    <subfield code="b">19</subfield>
+  </datafield>
+  <datafield tag="245" ind1="0" ind2="0">
+    <subfield code="a">[Wilbur in prone position in damaged machine on ground after unsuccessful trial of December 14, 1903; Kitty Hawk, North Carolina]</subfield>
+    <subfield code="h">[graphic].</subfield>
+  </datafield>
+  <datafield tag="260" ind1=" " ind2=" ">
+    <subfield code="c">[1903 Dec. 14]</subfield>
+  </datafield>
+  <datafield tag="300" ind1=" " ind2=" ">
+    <subfield code="a">1 negative :</subfield>
+    <subfield code="b">glass, dry plate ;</subfield>
+    <subfield code="c">5 x 7 in.</subfield>
+  </datafield>
+  <datafield tag="336" ind1=" " ind2=" ">
+    <subfield code="a">still image</subfield>
+    <subfield code="b">sti</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="337" ind1=" " ind2=" ">
+    <subfield code="a">unmediated</subfield>
+    <subfield code="b">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="337" ind1=" " ind2=" ">
+    <subfield code="3">Digital image</subfield>
+    <subfield code="a">computer</subfield>
+    <subfield code="b">c</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="338" ind1=" " ind2=" ">
+    <subfield code="a">sheet</subfield>
+    <subfield code="b">nb</subfield>
+    <subfield code="2">rdacarrier</subfield>
+  </datafield>
+  <datafield tag="338" ind1=" " ind2=" ">
+    <subfield code="3">Digital image</subfield>
+    <subfield code="a">online resource</subfield>
+    <subfield code="b">cr</subfield>
+    <subfield code="2">rdacarrier</subfield>
+  </datafield>
+  <datafield tag="500" ind1=" " ind2=" ">
+    <subfield code="a">Title from: Wilbur &amp; Orville Wright, pictorial materials: a documentary guide / Arthur G. Renstrom. Washington: Library of Congress, 1982, p. 56.</subfield>
+  </datafield>
+  <datafield tag="500" ind1=" " ind2=" ">
+    <subfield code="a">Attributed to Wilbur and/or Orville Wright.</subfield>
+  </datafield>
+  <datafield tag="530" ind1=" " ind2=" ">
+    <subfield code="a">Reference copy in LOT 11512.</subfield>
+  </datafield>
+  <datafield tag="540" ind1=" " ind2=" ">
+    <subfield code="a">No known restrictions.</subfield>
+  </datafield>
+  <datafield tag="580" ind1=" " ind2=" ">
+    <subfield code="a">Forms part of: Glass negatives from the Papers of Wilbur and Orville Wright.</subfield>
+  </datafield>
+  <datafield tag="600" ind1="1" ind2="0">
+    <subfield code="a">Wright, Wilbur,</subfield>
+    <subfield code="d">1867-1912.</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Airplanes</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Flight testing</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Aircraft accidents</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="655" ind1=" " ind2="7">
+    <subfield code="a">Dry plate negatives</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">gmgpc</subfield>
+  </datafield>
+  <datafield tag="700" ind1="1" ind2=" ">
+    <subfield code="a">Wright, Wilbur,</subfield>
+    <subfield code="d">1867-1912,</subfield>
+    <subfield code="e">photographer.</subfield>
+  </datafield>
+  <datafield tag="700" ind1="1" ind2=" ">
+    <subfield code="a">Wright, Orville,</subfield>
+    <subfield code="d">1871-1948,</subfield>
+    <subfield code="e">photographer.</subfield>
+  </datafield>
+  <datafield tag="773" ind1="0" ind2=" ">
+    <subfield code="t">Glass negatives from the Papers of Wilbur and Orville Wright</subfield>
+    <subfield code="w">(DLC)   00649999</subfield>
+  </datafield>
+  <datafield tag="852" ind1=" " ind2=" ">
+    <subfield code="a">Library of Congress</subfield>
+    <subfield code="b">Prints and Photographs Division</subfield>
+    <subfield code="e">Washington, D.C. 20540 USA</subfield>
+    <subfield code="n">dcu</subfield>
+  </datafield>
+  <datafield tag="856" ind1="4" ind2="1">
+    <subfield code="3">digital file from original</subfield>
+    <subfield code="d">ppprs</subfield>
+    <subfield code="f">00610</subfield>
+    <subfield code="u">http://hdl.loc.gov/loc.pnp/ppprs.00610</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/wri</subfield>
+    <subfield code="e">ammem</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/diof</subfield>
+  </datafield>
+  <datafield tag="991" ind1=" " ind2=" ">
+    <subfield code="b">c-P&amp;P</subfield>
+    <subfield code="v">obj.</subfield>
+  </datafield>
+</record></zs:recordData><zs:recordPosition>1</zs:recordPosition></zs:record><zs:record><zs:recordSchema>marcxml</zs:recordSchema><zs:recordPacking>xml</zs:recordPacking><zs:recordData><record xmlns="http://www.loc.gov/MARC21/slim">
+  <leader>02388ckm a22005417a 4500</leader>
+  <controlfield tag="001">12269460</controlfield>
+  <controlfield tag="005">20250606184308.8</controlfield>
+  <controlfield tag="007">kg||||</controlfield>
+  <controlfield tag="007">cr |||</controlfield>
+  <controlfield tag="008">010104s1903    |||nnn |     |    kneng  </controlfield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">12269460</subfield>
+  </datafield>
+  <datafield tag="906" ind1=" " ind2=" ">
+    <subfield code="a">0</subfield>
+    <subfield code="b">ibc</subfield>
+    <subfield code="c">orignew</subfield>
+    <subfield code="d">u</subfield>
+    <subfield code="e">ncip</subfield>
+    <subfield code="f">20</subfield>
+    <subfield code="g">y-printpho</subfield>
+  </datafield>
+  <datafield tag="955" ind1=" " ind2=" ">
+    <subfield code="a">qw05 2011-06r</subfield>
+  </datafield>
+  <datafield tag="955" ind1=" " ind2=" ">
+    <subfield code="a">LCAP batch update 2025-06-01-04:00: LCAPM-861</subfield>
+  </datafield>
+  <datafield tag="010" ind1=" " ind2=" ">
+    <subfield code="a">  2001696254</subfield>
+  </datafield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">(DLC)12269460</subfield>
+  </datafield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">(DLC)  2001696254</subfield>
+  </datafield>
+  <datafield tag="037" ind1=" " ind2=" ">
+    <subfield code="a">LC-DIG-ppprs-00611</subfield>
+    <subfield code="b">DLC</subfield>
+    <subfield code="c">(digital file from original)</subfield>
+  </datafield>
+  <datafield tag="037" ind1=" " ind2=" ">
+    <subfield code="a">LC-W861-20</subfield>
+    <subfield code="b">DLC</subfield>
+    <subfield code="c">(b&amp;w film copy neg.)</subfield>
+  </datafield>
+  <datafield tag="040" ind1=" " ind2=" ">
+    <subfield code="a">DLC</subfield>
+    <subfield code="c">DLC</subfield>
+    <subfield code="e">gihc</subfield>
+  </datafield>
+  <datafield tag="050" ind1="0" ind2="0">
+    <subfield code="a">LC-W86-</subfield>
+    <subfield code="b">20</subfield>
+  </datafield>
+  <datafield tag="245" ind1="0" ind2="0">
+    <subfield code="a">[Wilbur in prone position in damaged machine, on ground after unsuccessful trial of December 14, 1903, Kitty Hawk, North Carolina]</subfield>
+    <subfield code="h">[graphic].</subfield>
+  </datafield>
+  <datafield tag="260" ind1=" " ind2=" ">
+    <subfield code="c">[1903 Dec. 14]</subfield>
+  </datafield>
+  <datafield tag="300" ind1=" " ind2=" ">
+    <subfield code="a">1 negative :</subfield>
+    <subfield code="b">glass, dry plate ;</subfield>
+    <subfield code="c">5 x 7 in.</subfield>
+  </datafield>
+  <datafield tag="336" ind1=" " ind2=" ">
+    <subfield code="a">still image</subfield>
+    <subfield code="b">sti</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="337" ind1=" " ind2=" ">
+    <subfield code="a">unmediated</subfield>
+    <subfield code="b">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="337" ind1=" " ind2=" ">
+    <subfield code="3">Digital image</subfield>
+    <subfield code="a">computer</subfield>
+    <subfield code="b">c</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="338" ind1=" " ind2=" ">
+    <subfield code="a">sheet</subfield>
+    <subfield code="b">nb</subfield>
+    <subfield code="2">rdacarrier</subfield>
+  </datafield>
+  <datafield tag="338" ind1=" " ind2=" ">
+    <subfield code="3">Digital image</subfield>
+    <subfield code="a">online resource</subfield>
+    <subfield code="b">cr</subfield>
+    <subfield code="2">rdacarrier</subfield>
+  </datafield>
+  <datafield tag="500" ind1=" " ind2=" ">
+    <subfield code="a">Title from: Wilbur &amp; Orville Wright, pictorial materials: a documentary guide / Arthur G. Renstrom. Washington: Library of Congress, 1982, p. 56.</subfield>
+  </datafield>
+  <datafield tag="500" ind1=" " ind2=" ">
+    <subfield code="a">Photograph possibly taken by Orville Wright.</subfield>
+  </datafield>
+  <datafield tag="520" ind1="0" ind2=" ">
+    <subfield code="a">Photographs shows the shadow cast by the photographer.</subfield>
+  </datafield>
+  <datafield tag="530" ind1=" " ind2=" ">
+    <subfield code="a">Reference copy in LOT 11512.</subfield>
+  </datafield>
+  <datafield tag="540" ind1=" " ind2=" ">
+    <subfield code="a">No known restrictions.</subfield>
+  </datafield>
+  <datafield tag="580" ind1=" " ind2=" ">
+    <subfield code="a">Forms part of: Glass negatives from the Papers of Wilbur and Orville Wright.</subfield>
+  </datafield>
+  <datafield tag="600" ind1="1" ind2="0">
+    <subfield code="a">Wright, Wilbur,</subfield>
+    <subfield code="d">1867-1912.</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Airplanes</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Flight testing</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Shadows</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Aircraft accidents</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="655" ind1=" " ind2="7">
+    <subfield code="a">Dry plate negatives</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">gmgpc</subfield>
+  </datafield>
+  <datafield tag="773" ind1="0" ind2=" ">
+    <subfield code="t">Glass negatives from the Papers of Wilbur and Orville Wright</subfield>
+    <subfield code="w">(DLC)   00649999</subfield>
+  </datafield>
+  <datafield tag="852" ind1=" " ind2=" ">
+    <subfield code="a">Library of Congress</subfield>
+    <subfield code="b">Prints and Photographs Division</subfield>
+    <subfield code="e">Washington, D.C. 20540 USA</subfield>
+    <subfield code="n">dcu</subfield>
+  </datafield>
+  <datafield tag="856" ind1="4" ind2="1">
+    <subfield code="3">digital file from original</subfield>
+    <subfield code="d">ppprs</subfield>
+    <subfield code="f">00611</subfield>
+    <subfield code="u">http://hdl.loc.gov/loc.pnp/ppprs.00611</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/wri</subfield>
+    <subfield code="e">ammem</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/flickrphotog</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/diof</subfield>
+  </datafield>
+  <datafield tag="991" ind1=" " ind2=" ">
+    <subfield code="b">c-P&amp;P</subfield>
+    <subfield code="v">obj.</subfield>
+  </datafield>
+</record></zs:recordData><zs:recordPosition>2</zs:recordPosition></zs:record></zs:records><zs:echoedSearchRetrieveRequest><zs:version>1.1</zs:version><zs:query>dc.title="unsuccessful trial of December 14"</zs:query><zs:maximumRecords>3</zs:maximumRecords><zs:recordPacking>xml</zs:recordPacking><zs:recordSchema>marcxml</zs:recordSchema></zs:echoedSearchRetrieveRequest></zs:searchRetrieveResponse>

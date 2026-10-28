@@ -5,8 +5,7 @@
 Built while upgrading a production pipeline of vertical history shorts (Remotion 4 + hand-written SVG art + local Kokoro narration, no paid APIs, no AI images). Every repo here was cloned, read and judged for that kind of pipeline: what it is, how to run it, which techniques actually move quality, what is free vs paid, and what its license lets you do.
 
 ```bash
-git clone --recurse-submodules https://github.com/Eelvanpsd/Claude-Video-Pro-Max.git
-# already cloned?  git submodule update --init --recursive
+git clone https://github.com/Eelvanpsd/Claude-Video-Pro-Max.git   # everything included, no submodules
 ```
 
 ---
@@ -24,12 +23,12 @@ git clone --recurse-submodules https://github.com/Eelvanpsd/Claude-Video-Pro-Max
 | 7 | [calesthio/OpenMontage](https://github.com/calesthio/OpenMontage) | Agentic production system: 13 pipelines, stage-director skills, post-render self-review | AGPLv3 | ✅ core | 💡 Ideas & thresholds | [docs](docs/repos/07-OpenMontage.md) |
 | 8 | [yapaytu/reels-sistemi](https://github.com/yapaytu/reels-sistemi) | Small Turkish Reels skill: hook rules, word-anchored HTML scenes, mouth envelope, post caption/first comment | MIT | ✅ (voice aside) | 💡 Ideas only | [docs](docs/repos/08-reels-sistemi.md) |
 
-Each repo is included as a **git submodule** under [`repos/`](repos) — pinned to the commit that was reviewed, with its own license intact.
+Each repo is included **in full** under [`repos/`](repos) — a copy of the commit that was reviewed, with its own license intact. Upstream URLs and commits: [`repos/SOURCES.md`](repos/SOURCES.md).
 
 ## What's in here
 
 ```
-repos/                    8 submodules (original code, original licenses)
+repos/                    8 vendored repos (original code, original licenses) + SOURCES.md
 docs/repos/01…08-*.md     per-repo deep dive: architecture, run commands, techniques with file paths, free vs paid, what to adopt
 docs/COMPARISON.md        side-by-side matrix: license, engine, transitions, motion, captions, audio, QA
 docs/ROADMAP.md           16 ideas ranked by quality gain per hour, with status
@@ -76,7 +75,7 @@ node kit/tools/contact-sheet.mjs out/video.mp4 --strip 12:12.8  # every frame of
 
 ## Licensing
 
-- Code under `repos/` belongs to its authors and stays under **its own license** (see table). This repo only references it as submodules; nothing is relicensed.
+- Code under `repos/` belongs to its authors and stays under **its own license** (see table). It is redistributed unmodified with each repo's own LICENSE; nothing is relicensed.
 - **onetake** is non-commercial and **OpenMontage** is AGPLv3 — the kit re-implements *ideas* from them, it does not copy their code.
 - **hypit**: own-organisation use is fine; no multi-tenant SaaS or commercial redistribution; keep its name/logo in its CLI and reports.
 - Everything else in this repo (`docs/`, `kit/`, this README) is **MIT** — see [`LICENSE`](LICENSE).
@@ -85,4 +84,4 @@ node kit/tools/contact-sheet.mjs out/video.mp4 --strip 12:12.8  # every frame of
 
 ### Türkçe özet
 
-Video kalitesini yükseltmek için incelenen 7 açık kaynak repo: hepsi `repos/` altında submodule olarak duruyor. Her biri için `docs/repos/` içinde detaylı analiz var (ne işe yarar, nasıl çalıştırılır, hangi teknikler kaliteyi artırır, ücretsiz mi ücretli mi, lisansı neye izin verir). `kit/` klasöründe bu repolardan çıkarılan, doğrudan kullanılabilir Remotion parçaları (çizgi titremesi, yırtık kâğıt geçişi, tarih "slam" efekti) ve ffmpeg kontrol aracı var. `docs/ROADMAP.md` sıradaki iyileştirmeleri, `docs/QUALITY-CHECKLIST.md` yayın öncesi kontrol listesini içeriyor.
+Video kalitesini yükseltmek için incelenen 8 açık kaynak repo: hepsinin tam içeriği `repos/` altında (kaynak ve commit listesi `repos/SOURCES.md`). Her biri için `docs/repos/` içinde detaylı analiz var (ne işe yarar, nasıl çalıştırılır, hangi teknikler kaliteyi artırır, ücretsiz mi ücretli mi, lisansı neye izin verir). `kit/` klasöründe bu repolardan çıkarılan, doğrudan kullanılabilir Remotion parçaları (çizgi titremesi, yırtık kâğıt geçişi, tarih "slam" efekti) ve ffmpeg kontrol aracı var. `docs/ROADMAP.md` sıradaki iyileştirmeleri, `docs/QUALITY-CHECKLIST.md` yayın öncesi kontrol listesini içeriyor.

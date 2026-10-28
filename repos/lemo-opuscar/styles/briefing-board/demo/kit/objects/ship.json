@@ -1,0 +1,45 @@
+{
+  "id": "ship",
+  "w": 444,
+  "h": 2592,
+  "anchors": {
+    "bow": [
+      0.5,
+      1.0
+    ],
+    "stern": [
+      0.5,
+      0.0
+    ]
+  },
+  "trim": [
+    27,
+    16,
+    471,
+    2608
+  ],
+  "prep": {
+    "raw": "sources/candidates/ship_top/ship_top_1.jpg",
+    "id": "ship",
+    "rotate": 90.0,
+    "crop": "740,190,1230,2820",
+    "mask": null,
+    "mask_mul": null,
+    "mask_max": null,
+    "thin_region": null,
+    "thin_color": null,
+    "radial": null,
+    "patch": [],
+    "poly": "34,14 464,14 464,2490 430,2560 340,2606 240,2614 140,2606 52,2560 34,2490",
+    "cut": [],
+    "keep_largest": true,
+    "min_island": 0.002,
+    "erode": 1,
+    "sat": 0.95,
+    "contrast": 1.06,
+    "warm": 0.015,
+    "gamma": 1.0,
+    "exposure": 0.0,
+    "max": 2700
+  }
+}

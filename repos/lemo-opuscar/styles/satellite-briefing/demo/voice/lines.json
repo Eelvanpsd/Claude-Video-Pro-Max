@@ -1,0 +1,75 @@
+[
+ {
+  "id": "l1",
+  "text": "On the map, this is still a sea.",
+  "voice": "bf_emma",
+  "speed": 0.9,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l2",
+  "text": "In nineteen seventy-seven, it was.",
+  "voice": "bf_emma",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "In 1977, it was."
+ },
+ {
+  "id": "l3",
+  "text": "Then its rivers went to the cotton fields.",
+  "voice": "bf_emma",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l4",
+  "text": "By twenty fourteen, the eastern basin had dried.",
+  "voice": "bf_emma",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "By 2014, the eastern basin had dried."
+ },
+ {
+  "id": "l5",
+  "text": "This was a fishing port.",
+  "voice": "bf_emma",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l6",
+  "text": "Today, the sea is ninety-five kilometres away.",
+  "voice": "bf_emma",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "Today, the sea is 95 kilometers away."
+ },
+ {
+  "id": "l7",
+  "text": "But up north, a dam went in.",
+  "voice": "bf_emma",
+  "speed": 0.9,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l8",
+  "text": "And the water came back.",
+  "voice": "bf_emma",
+  "speed": 0.9,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l9",
+  "text": "The sea did not come back on its own.",
+  "voice": "bf_emma",
+  "speed": 0.9,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l10",
+  "text": "Someone kept it.",
+  "voice": "bf_emma",
+  "speed": 0.9,
+  "lang": "en-gb"
+ }
+]

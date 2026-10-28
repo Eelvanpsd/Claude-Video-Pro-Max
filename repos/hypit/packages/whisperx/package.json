@@ -1,0 +1,44 @@
+{
+  "name": "@hypit/whisperx",
+  "version": "0.2.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1"
+  },
+  "dependencies": {
+    "@hypit/media": "workspace:^0.1.0",
+    "@hypit/media-local": "workspace:^0.2.0",
+    "@hypit/narrative": "workspace:^0.1.0",
+    "@hypit/narrative-speech-alignment": "workspace:^0.2.0",
+    "@hypit/narrative-temporal": "workspace:^0.1.0",
+    "@hypit/speech-evidence": "workspace:^0.1.0",
+    "@hypit/temporal": "workspace:^0.1.0"
+  },
+  "devDependencies": {
+    "@hypit/hypit": "workspace:*",
+    "@hypit/producer": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/media": "workspace:*",
+    "@hypit/narrative": "workspace:*",
+    "@hypit/narrative-temporal": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/speech-evidence": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/temporal": "workspace:*",
+    "typescript": "5.9.3",
+    "@hypit/timeline": "workspace:*"
+  }
+}

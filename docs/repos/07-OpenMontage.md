@@ -1,6 +1,6 @@
 # OpenMontage — calesthio/OpenMontage
 
-> Submodule: [`repos/OpenMontage`](../../repos/OpenMontage) · License: **AGPLv3** · Verdict: 💡 **Ideas & thresholds — copying code makes your project AGPL**
+> Source (vendored): [`repos/OpenMontage`](../../repos/OpenMontage) · License: **AGPLv3** · Verdict: 💡 **Ideas & thresholds — copying code makes your project AGPL**
 
 ## What it is
 "The first open-source, agentic video production system." No code orchestrator: the AI coding assistant orchestrates, steered by `AGENT_GUIDE.md` (48 KB of routing rules).

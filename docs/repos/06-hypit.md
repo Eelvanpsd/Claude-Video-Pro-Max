@@ -1,6 +1,6 @@
 # hypit — hypit-ai/hypit
 
-> Submodule: [`repos/hypit`](../../repos/hypit) · License: **Modified Apache 2.0** (no multi-tenant SaaS, no commercial redistribution, keep name/logo/copyright in CLI & reports; output belongs to you) · Verdict: ✅ **Adopt ideas; use the tool locally for own work**
+> Source (vendored): [`repos/hypit`](../../repos/hypit) · License: **Modified Apache 2.0** (no multi-tenant SaaS, no commercial redistribution, keep name/logo/copyright in CLI & reports; output belongs to you) · Verdict: ✅ **Adopt ideas; use the tool locally for own work**
 
 ## What it is
 An agent-driven video authoring system ("a language and system for AI agents to create video", v0.3.1). Give it a reference video; the agent turns it into a **re-runnable workflow** — footage, captions, B-roll and effects **anchored to words instead of seconds**. Generation models are optional: captions, motion graphics and code-rendered visuals can compile into a finished video with no model call.

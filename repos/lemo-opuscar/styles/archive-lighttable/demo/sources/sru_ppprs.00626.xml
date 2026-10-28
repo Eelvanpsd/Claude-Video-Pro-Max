@@ -1,0 +1,232 @@
+<?xml version="1.0"?>
+<zs:searchRetrieveResponse xmlns:zs="http://www.loc.gov/zing/srw/"><zs:version>1.1</zs:version><zs:numberOfRecords>1</zs:numberOfRecords><zs:records><zs:record><zs:recordSchema>marcxml</zs:recordSchema><zs:recordPacking>xml</zs:recordPacking><zs:recordData><record xmlns="http://www.loc.gov/MARC21/slim">
+  <leader>04761ckm a22007217a 4500</leader>
+  <controlfield tag="001">12190995</controlfield>
+  <controlfield tag="005">20250606183612.9</controlfield>
+  <controlfield tag="007">kg bd|</controlfield>
+  <controlfield tag="007">cr |||||||||||</controlfield>
+  <controlfield tag="008">000930s1903    xxunnn            kn     </controlfield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">12190995</subfield>
+  </datafield>
+  <datafield tag="906" ind1=" " ind2=" ">
+    <subfield code="a">p</subfield>
+    <subfield code="b">ibc</subfield>
+    <subfield code="c">orignew</subfield>
+    <subfield code="d">u</subfield>
+    <subfield code="e">ncip</subfield>
+    <subfield code="f">20</subfield>
+    <subfield code="g">y-printpho</subfield>
+  </datafield>
+  <datafield tag="955" ind1=" " ind2=" ">
+    <subfield code="a">LCAP batch update 2025-06-01-04:00: LCAPM-861</subfield>
+  </datafield>
+  <datafield tag="010" ind1=" " ind2=" ">
+    <subfield code="a">   00652085 </subfield>
+  </datafield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">(DLC)12190995</subfield>
+  </datafield>
+  <datafield tag="035" ind1=" " ind2=" ">
+    <subfield code="a">(DLC)   00652085</subfield>
+  </datafield>
+  <datafield tag="037" ind1=" " ind2=" ">
+    <subfield code="a">LC-DIG-ppprs-00626</subfield>
+    <subfield code="b">DLC</subfield>
+    <subfield code="c">(digital file from original)</subfield>
+  </datafield>
+  <datafield tag="037" ind1=" " ind2=" ">
+    <subfield code="a">LC-W861-35</subfield>
+    <subfield code="b">DLC</subfield>
+    <subfield code="c">(b&amp;w film copy neg.)</subfield>
+  </datafield>
+  <datafield tag="037" ind1=" " ind2=" ">
+    <subfield code="a">LC-USZ62-6166A</subfield>
+    <subfield code="b">DLC</subfield>
+    <subfield code="c">(b&amp;w film copy neg.)</subfield>
+  </datafield>
+  <datafield tag="040" ind1=" " ind2=" ">
+    <subfield code="a">DLC</subfield>
+    <subfield code="c">DLC</subfield>
+    <subfield code="e">gihc</subfield>
+  </datafield>
+  <datafield tag="050" ind1="0" ind2="0">
+    <subfield code="a">LC-W86-</subfield>
+    <subfield code="b">35</subfield>
+  </datafield>
+  <datafield tag="245" ind1="0" ind2="0">
+    <subfield code="a">[First flight, 120 feet in 12 seconds, 10:35 a.m.; Kitty Hawk, North Carolina]</subfield>
+    <subfield code="h">[graphic].</subfield>
+  </datafield>
+  <datafield tag="246" ind1="1" ind2=" ">
+    <subfield code="a">First flight, December 17, 1903</subfield>
+  </datafield>
+  <datafield tag="260" ind1=" " ind2=" ">
+    <subfield code="c">[1903 Dec. 17]</subfield>
+  </datafield>
+  <datafield tag="300" ind1=" " ind2=" ">
+    <subfield code="a">1 photograph :</subfield>
+    <subfield code="b">glass negative, dry plate ;</subfield>
+    <subfield code="c">plate 18 x 12.5 cm (5 x 7 format).</subfield>
+  </datafield>
+  <datafield tag="336" ind1=" " ind2=" ">
+    <subfield code="a">still image</subfield>
+    <subfield code="b">sti</subfield>
+    <subfield code="2">rdacontent</subfield>
+  </datafield>
+  <datafield tag="337" ind1=" " ind2=" ">
+    <subfield code="a">unmediated</subfield>
+    <subfield code="b">n</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="337" ind1=" " ind2=" ">
+    <subfield code="3">Digital image</subfield>
+    <subfield code="a">computer</subfield>
+    <subfield code="b">c</subfield>
+    <subfield code="2">rdamedia</subfield>
+  </datafield>
+  <datafield tag="338" ind1=" " ind2=" ">
+    <subfield code="a">sheet</subfield>
+    <subfield code="b">nb</subfield>
+    <subfield code="2">rdacarrier</subfield>
+  </datafield>
+  <datafield tag="338" ind1=" " ind2=" ">
+    <subfield code="3">Digital image</subfield>
+    <subfield code="a">online resource</subfield>
+    <subfield code="b">cr</subfield>
+    <subfield code="2">rdacarrier</subfield>
+  </datafield>
+  <datafield tag="500" ind1=" " ind2=" ">
+    <subfield code="a">Title and subject note from: Wilbur &amp; Orville Wright, pictorial materials: a documentary guide / Arthur G. Renstrom. Washington: Library of Congress, 1982, p. 57.</subfield>
+  </datafield>
+  <datafield tag="500" ind1=" " ind2=" ">
+    <subfield code="a">Attributed to Wilbur and/or Orville Wright.</subfield>
+  </datafield>
+  <datafield tag="506" ind1=" " ind2=" ">
+    <subfield code="a">Restricted access. Please use digital image or other reference copy. Original photograph is too fragile to serve.</subfield>
+  </datafield>
+  <datafield tag="520" ind1="0" ind2=" ">
+    <subfield code="a">Photograph shows the first powered, controlled, sustained flight. Orville Wright at the controls of the machine, lying prone on the lower wing with hips in the cradle which operated the wing-warping mechanism. Wilbur Wright running alongside to balance the machine, has just released his hold on the forward upright of the right wing.  The starting rail, the wing-rest, a coil box, and other items needed for flight preparation are visible behind the machine. (Orville Wright preset the camera and had John T. Daniels squeeze the rubber bulb, tripping the shutter.)</subfield>
+  </datafield>
+  <datafield tag="530" ind1=" " ind2=" ">
+    <subfield code="a">Reference copy in LOT 11512.</subfield>
+  </datafield>
+  <datafield tag="540" ind1=" " ind2=" ">
+    <subfield code="a">No known restrictions on publication.</subfield>
+  </datafield>
+  <datafield tag="545" ind1=" " ind2=" ">
+    <subfield code="a">For more information about this collection, see</subfield>
+    <subfield code="u">http://hdl.loc.gov/loc.pnp/pp.wri</subfield>
+  </datafield>
+  <datafield tag="580" ind1=" " ind2=" ">
+    <subfield code="a">Forms part of: Glass negatives from the Papers of Wilbur and Orville Wright.</subfield>
+  </datafield>
+  <datafield tag="581" ind1="8" ind2=" ">
+    <subfield code="a">Published in: The Joy of Looking: Great Photographs from the Library of Congress, 2023.</subfield>
+  </datafield>
+  <datafield tag="581" ind1="8" ind2=" ">
+    <subfield code="a">Published in: "Architecture ..." chapter of the ebook Great Photographs from the Library of Congress, 2013.</subfield>
+  </datafield>
+  <datafield tag="581" ind1="8" ind2=" ">
+    <subfield code="a">Published in: American treasures in the Library of Congress. New York : Harry N. Abrams, 1997, p. 96.</subfield>
+  </datafield>
+  <datafield tag="581" ind1="8" ind2=" ">
+    <subfield code="a">Published in: Eyes of the nation : a visual history of the United States / Vincent Virga and curators of the Library of Congress ; historical commentary by Alan Brinkley. New York : Knopf, 1997.</subfield>
+  </datafield>
+  <datafield tag="581" ind1="8" ind2=" ">
+    <subfield code="a">Published in: The tradition of technology : Landmarks of Western technology ... / Leonard C. Bruno. Washington, D.C. : Library of Congress, 1995, p. 286.</subfield>
+  </datafield>
+  <datafield tag="581" ind1="8" ind2=" ">
+    <subfield code="a">Library of Congress prints and photographs: an illustrated guide / Library of Congress. Washington, D.C. : Library of Congress, 1995, p. 19.</subfield>
+  </datafield>
+  <datafield tag="581" ind1="8" ind2=" ">
+    <subfield code="a">Published in: Viewpoints; a selection from the pictorial collections of the Library of Congress .... Washington : Library of Congress ..., 1975, no. 49.</subfield>
+  </datafield>
+  <datafield tag="585" ind1=" " ind2=" ">
+    <subfield code="a">Exhibited as a digital copy in: "Not an Ostrich: And Other Images from America's Library" at the Annenberg Space for Photography, 2018;  Portrait section.</subfield>
+  </datafield>
+  <datafield tag="600" ind1="1" ind2="0">
+    <subfield code="a">Wright, Orville,</subfield>
+    <subfield code="d">1871-1948.</subfield>
+  </datafield>
+  <datafield tag="600" ind1="1" ind2="0">
+    <subfield code="a">Wright, Wilbur,</subfield>
+    <subfield code="d">1867-1912.</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Airplanes</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="650" ind1=" " ind2="7">
+    <subfield code="a">Firsts</subfield>
+    <subfield code="z">North Carolina</subfield>
+    <subfield code="z">Kitty Hawk</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">lctgm</subfield>
+  </datafield>
+  <datafield tag="655" ind1=" " ind2="7">
+    <subfield code="a">Dry plate negatives</subfield>
+    <subfield code="y">1900-1910.</subfield>
+    <subfield code="2">gmgpc</subfield>
+  </datafield>
+  <datafield tag="700" ind1="1" ind2=" ">
+    <subfield code="a">Wright, Wilbur,</subfield>
+    <subfield code="d">1867-1912,</subfield>
+    <subfield code="e">photographer.</subfield>
+  </datafield>
+  <datafield tag="700" ind1="1" ind2=" ">
+    <subfield code="a">Wright, Orville,</subfield>
+    <subfield code="d">1871-1948,</subfield>
+    <subfield code="e">photographer.</subfield>
+  </datafield>
+  <datafield tag="700" ind1="1" ind2=" ">
+    <subfield code="a">Daniels, John T.,</subfield>
+    <subfield code="e">photographer.</subfield>
+  </datafield>
+  <datafield tag="773" ind1="0" ind2=" ">
+    <subfield code="t">Glass negatives from the Papers of Wilbur and Orville Wright</subfield>
+    <subfield code="w">(DLC)   00649999</subfield>
+  </datafield>
+  <datafield tag="852" ind1=" " ind2=" ">
+    <subfield code="a">Library of Congress</subfield>
+    <subfield code="b">Prints and Photographs Division</subfield>
+    <subfield code="e">Washington, D.C. 20540 USA</subfield>
+    <subfield code="n">dcu</subfield>
+    <subfield code="u">http://hdl.loc.gov/loc.pnp/pp.print</subfield>
+  </datafield>
+  <datafield tag="856" ind1="4" ind2="1">
+    <subfield code="3">digital file from original</subfield>
+    <subfield code="d">ppprs</subfield>
+    <subfield code="f">00626</subfield>
+    <subfield code="q">p</subfield>
+    <subfield code="u">http://hdl.loc.gov/loc.pnp/ppprs.00626</subfield>
+  </datafield>
+  <datafield tag="856" ind1="4" ind2="1">
+    <subfield code="3">digital file from b&amp;w film copy neg. (LC-USZ62-6166A)</subfield>
+    <subfield code="d">cph</subfield>
+    <subfield code="f">3a53266</subfield>
+    <subfield code="q">p</subfield>
+    <subfield code="u">http://hdl.loc.gov/loc.pnp/cph.3a53266</subfield>
+  </datafield>
+  <datafield tag="969" ind1=" " ind2=" ">
+    <subfield code="a">Lccn 96507704 had a version of this record for a reference print</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/wri</subfield>
+    <subfield code="e">ammem</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/flickrppoc</subfield>
+  </datafield>
+  <datafield tag="985" ind1=" " ind2=" ">
+    <subfield code="a">pp/diof</subfield>
+  </datafield>
+  <datafield tag="991" ind1=" " ind2=" ">
+    <subfield code="b">c-P&amp;P</subfield>
+    <subfield code="m">(Cabinet A)</subfield>
+    <subfield code="v">obj.</subfield>
+  </datafield>
+</record></zs:recordData><zs:recordPosition>1</zs:recordPosition></zs:record></zs:records><zs:echoedSearchRetrieveRequest><zs:version>1.1</zs:version><zs:query>bath.lccn=00652085</zs:query><zs:maximumRecords>3</zs:maximumRecords><zs:recordPacking>xml</zs:recordPacking><zs:recordSchema>marcxml</zs:recordSchema></zs:echoedSearchRetrieveRequest></zs:searchRetrieveResponse>

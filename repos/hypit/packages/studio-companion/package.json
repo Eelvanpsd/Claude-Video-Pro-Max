@@ -1,0 +1,20 @@
+{
+  "name": "@hypit/studio-companion",
+  "version": "0.1.2",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.0"
+  },
+  "devDependencies": {
+    "@hypit/hypit": "workspace:*"
+  }
+}

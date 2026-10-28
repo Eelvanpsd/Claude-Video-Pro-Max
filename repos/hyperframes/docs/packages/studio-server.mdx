@@ -1,0 +1,96 @@
+---
+title: "@hyperframes/studio-server"
+description: "Mount the Studio project and preview API in your own server."
+---
+
+`@hyperframes/studio-server` is the backend used by Studio. It serves projects
+and previews, applies source mutations, creates thumbnails, and starts render
+jobs.
+
+Most users do not need it. The CLI wires the server and Studio together when
+you run `npx hyperframes preview`. Use this package only when your own
+application must host the Studio backend.
+
+```bash
+npm install @hyperframes/studio-server
+```
+
+## Mount the API
+
+`createStudioApi()` returns a Hono application. The adapter is the boundary
+between Studio and your project storage, bundler, linter, and renderer.
+
+```ts
+import type { Hono } from "hono";
+import {
+  createStudioApi,
+  type StudioApiAdapter,
+} from "@hyperframes/studio-server";
+
+export function mountStudioApi(
+  app: Hono,
+  adapter: StudioApiAdapter,
+) {
+  app.route("/api", createStudioApi(adapter));
+}
+```
+
+When it is served from loopback (`localhost`, `127.0.0.1` or `[::1]`), Studio
+sends its API requests without cookies, so they don't queue behind the
+preview's media. On any other origin it sends them as usual, so remote and
+proxied setups (Codespaces, tunnels, an access proxy) keep their cookies by
+default. A loopback host that authenticates its mounted API with same-origin
+cookies sets `VITE_STUDIO_API_SAME_ORIGIN_CREDENTIALS=true`, at build time or at
+runtime in `window.__HF_STUDIO_ENV__`; it costs that host the connection
+speedup.
+Studio reads the flag once, when its modules load, so set
+`window.__HF_STUDIO_ENV__` before loading Studio; the CLI injects it, but a host
+that mounts the API itself must inject it too.
+
+A `StudioApiAdapter` supplies:
+
+- project listing and resolution;
+- composition bundling and linting;
+- render output storage and job startup;
+- optional thumbnails, sessions, registry installation, and background removal.
+
+Use the interface exported by your installed version as the exact contract. It
+changes as Studio gains capabilities.
+
+`bundle(projectDir, options)` must pass `options` through to `bundleToSingleHtml`,
+spread over your own options. The preview sets `stampHfIds` there so each element
+is served with the id its source file mints. If a host drops it, a composition
+the bundler inlines can be served with ids that a later save does not mint.
+
+```ts
+bundle: (dir, options) => bundleToSingleHtml(dir, { runtime: "inline", ...options }),
+```
+
+## Other entry points
+
+| Import | Purpose |
+| --- | --- |
+| `@hyperframes/studio-server/source-mutation` | Apply guarded changes to composition source |
+| `@hyperframes/studio-server/screenshot-clip` | Calculate element screenshot geometry |
+| `@hyperframes/studio-server/safe-path` | Resolve paths inside a project and walk its files, without the server |
+| `@hyperframes/studio-server/hf-ids` | Stamp stable element ids into a project's HTML, without the server |
+| `@hyperframes/studio-server/history` | Open a project's undo history, without the server |
+| `@hyperframes/studio-server/manual-edits-render-script` | Reapply Studio manual edits during render |
+| `@hyperframes/studio-server/studio-motion-render-script` | Reapply Studio motion edits during render |
+| `@hyperframes/studio-server/draft-markers` | Work with draft gesture markers |
+| `@hyperframes/studio-server/finite-mutation` | Guard source mutations against non-finite values |
+| `@hyperframes/studio-server/media-proxy-preview` | Support proxied media in preview |
+
+`@hyperframes/core/studio-api` remains a deprecated compatibility re-export.
+New integrations should import from `@hyperframes/studio-server`.
+
+## Related topics
+
+<CardGroup cols={2}>
+  <Card title="@hyperframes/studio" icon="palette" href="/packages/studio">
+    Embed lower-level Studio interface components.
+  </Card>
+  <Card title="Studio guide" icon="display" href="/studio">
+    Use the complete editor that ships with HyperFrames.
+  </Card>
+</CardGroup>

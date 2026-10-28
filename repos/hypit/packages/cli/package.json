@@ -1,0 +1,31 @@
+{
+  "name": "@hypit/cli",
+  "version": "0.0.0-dev",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@hypit/result": "workspace:*",
+    "@hypit/compiler": "workspace:*",
+    "@hypit/producer": "workspace:*",
+    "@hypit/kernel": "workspace:*",
+    "@hypit/executor": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/loader": "workspace:*",
+    "@hypit/project": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/run": "workspace:*",
+    "@hypit/runtime": "workspace:*",
+    "@hypit/source": "workspace:*",
+    "@hypit/admission": "workspace:*",
+    "@hypit/workspace": "workspace:*",
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@hypit/markup": "workspace:*",
+    "@hypit/runtime-local": "workspace:*"
+  }
+}

@@ -1,0 +1,40 @@
+Two Seconds Short (差两秒) — Archive Light Table (Lemo-Opuscar) · LemoLab × Claude Opus 5.5
+An unofficial film about a real event (the Wright brothers' flights of 17 December 1903) made only from
+public-domain archive scans. No AI-generated images, no stock footage. The light table, glass, dust, loupe,
+marks, readouts and camera are drawn in code (film.js). Sources accessed 2026-10-16; catalogue records in sources/.
+
+ARCHIVE (Library of Congress; public domain, published before 1929; the Library lists no known restrictions on the
+Wright Brothers Negatives)
+- First flight, 120 feet in 12 seconds, 10:35 a.m.; Kitty Hawk, North Carolina. 1903 Dec. 17. Glass negative.
+  Prints & Photographs Division, LC-DIG-ppprs-00626, https://hdl.loc.gov/loc.pnp/ppprs.00626
+  File: https://tile.loc.gov/storage-services/master/pnp/ppprs/00600/00626u.tif
+- Distant view of the Wright airplane just after landing … the fourth and final [flight] of December 17, 1903.
+  Glass negative. LC-DIG-ppprs-00629, https://hdl.loc.gov/loc.pnp/ppprs.00629
+  File: https://tile.loc.gov/storage-services/master/pnp/ppprs/00600/00629u.tif
+- Wilbur in prone position in damaged machine … unsuccessful trial of December 14, 1903. Glass negative.
+  LC-DIG-ppprs-00610, https://hdl.loc.gov/loc.pnp/ppprs.00610
+  File: https://tile.loc.gov/storage-services/master/pnp/ppprs/00600/00610u.tif
+- Newspaper notice of Wright Bros. 1st flight: Dayton Herald, Dec. 18, 1903. LC-USZ62-70686,
+  https://hdl.loc.gov/loc.pnp/cph.3b18080
+  File: https://tile.loc.gov/storage-services/master/pnp/cph/3b10000/3b18000/3b18000/3b18080u.tif
+- Telegram from Orville Wright in Kitty Hawk, N.C., to his father announcing four successful flights, 1903 Dec. 17.
+  Wilbur and Orville Wright Papers, Manuscript Division (P&P copy LC-USZ62-65459, https://hdl.loc.gov/loc.pnp/cph.3b12982).
+  Colour scan from https://www.loc.gov/resource/mcc.061/ via Wikimedia Commons, public domain:
+  https://commons.wikimedia.org/wiki/File:Telegram_Orville_Wright_17_dec_1903.jpg
+- Modifications: inversion to a negative for the light table, emulsion masks, levels, the Flyer and Wilbur cut into
+  layers with the background filled (tools/prep.py), the telegram's scan mat trimmed.
+
+MUSIC (original score, mix.py, sampled instruments through core/audio/sampler.py)
+- Piano: "Salamander Grand Piano V3" by Alexander Holm, licensed under CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/)
+- Samples (CC0): FreePats project (freepats.zenvoid.org), VS Chamber Orchestra: Community Edition (Versilian Studios),
+  Versilian Community Sample Library (Versilian Studios) — strings, glass, bowed vibraphone, timpani, suspended cymbal
+- Foley and beds (light-table hum, loupe on glass, paper, ticks, pen, wind, surf): synthesised in mix.py with core/audio/sfx.py
+
+VOICE
+- Kokoro-82M (hexgrad), voice bm_george, Apache License 2.0; run locally via kokoro-onnx (MIT) through core/tts/tts.py.
+  Speech check: faster-whisper small.en (MIT; OpenAI Whisper weights, MIT).
+
+FONTS (SIL Open Font License 1.1; tools/fonts.py fetches every face from Google Fonts and the licence texts from
+github.com/google/fonts into fonts/; Chinese faces subset with the CSS2 API &text=)
+- IBM Plex Mono, IBM Plex Sans — IBM
+- Noto Sans SC, Noto Serif SC — Google / Adobe

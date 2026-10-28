@@ -1,0 +1,58 @@
+[
+ {
+  "id": "l1",
+  "text": "In twenty fourteen, the world had almost twice as much wind power as solar.",
+  "asr": "In 2014, the world had almost twice as much wind power as solar.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "l2",
+  "text": "Every plate is ten gigawatts. Every brass plate, one hundred.",
+  "asr": "Every plate is ten gigawatts. Every brass plate, one hundred.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "l3",
+  "text": "Wind kept growing. Solar grew faster.",
+  "asr": "Wind kept growing. Solar grew faster.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "l4",
+  "text": "In twenty twenty-one, solar passed wind.",
+  "asr": "In 2021, solar passed wind.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "l5",
+  "text": "In twenty twenty-five alone, solar added more than five hundred gigawatts.",
+  "asr": "In 2025 alone, solar added more than five hundred gigawatts.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "l6",
+  "text": "Step back, and twelve years become one dial.",
+  "asr": "Step back, and twelve years become one dial.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "l7",
+  "text": "Now it is the other way round.",
+  "asr": "Now it is the other way round.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ }
+]

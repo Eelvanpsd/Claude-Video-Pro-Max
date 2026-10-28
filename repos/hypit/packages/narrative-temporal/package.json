@@ -1,0 +1,34 @@
+{
+  "name": "@hypit/narrative-temporal",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "dependencies": {
+    "@hypit/narrative": "workspace:^0.1.0",
+    "@hypit/temporal": "workspace:^0.1.0",
+    "@hypit/timeline": "workspace:^0.1.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1",
+    "@hypit/studio-companion": "workspace:^0.1.1"
+  },
+  "devDependencies": {
+    "@hypit/producer": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/admission": "workspace:*",
+    "@hypit/hypit": "workspace:*"
+  }
+}

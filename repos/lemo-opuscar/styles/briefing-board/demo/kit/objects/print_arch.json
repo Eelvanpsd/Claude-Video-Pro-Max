@@ -1,0 +1,15 @@
+{
+  "id": "print_arch",
+  "w": 1200,
+  "h": 593,
+  "anchors": {},
+  "print": true,
+  "prep": {
+    "src": "sources/candidates/arch/arch_1.tif",
+    "id": "print_arch",
+    "crop": "0,1000,7360,4300",
+    "w": 1100,
+    "border": 0.045,
+    "sat": 0.85
+  }
+}

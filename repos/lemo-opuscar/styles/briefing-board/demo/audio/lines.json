@@ -1,0 +1,61 @@
+[
+ {
+  "id": "L1",
+  "text": "This river is a thousand meters wide.",
+  "voice": "af_heart",
+  "speed": 1.06
+ },
+ {
+  "id": "L2",
+  "text": "First instinct: piers all the way across. A beam bridge.",
+  "voice": "af_heart",
+  "speed": 1.1
+ },
+ {
+  "id": "L3",
+  "text": "But the river isn't the problem. The ship is.",
+  "voice": "af_heart",
+  "speed": 1.02
+ },
+ {
+  "id": "L4",
+  "text": "New rule: no piers in the channel. One span.",
+  "voice": "af_heart",
+  "speed": 1.08,
+  "asr": "New rule, no peers in the channel. One span."
+ },
+ {
+  "id": "L5",
+  "text": "Beam: three hundred and thirty. Not close.",
+  "voice": "af_heart",
+  "speed": 1.08,
+  "asr": "Beam 330, not close."
+ },
+ {
+  "id": "L6",
+  "text": "Arch: six hundred. Still short.",
+  "voice": "af_heart",
+  "speed": 1.08,
+  "asr": "Arch 600, still short."
+ },
+ {
+  "id": "L7",
+  "text": "Cable-stayed: twelve hundred and eight. Just enough.",
+  "voice": "af_heart",
+  "speed": 1.08,
+  "asr": "Cable stayed 1,208, just enough."
+ },
+ {
+  "id": "L8",
+  "text": "Suspension: over two thousand.",
+  "voice": "af_heart",
+  "speed": 1.08,
+  "asr": "Suspension over 2,000."
+ },
+ {
+  "id": "L9",
+  "text": "The river sets the question. The ship sets the span.",
+  "voice": "af_heart",
+  "speed": 1.04
+ }
+]

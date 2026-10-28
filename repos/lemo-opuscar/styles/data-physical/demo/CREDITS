@@ -1,0 +1,33 @@
+Two Spirals 《两条螺旋》 — Data Physicalization demo · CREDITS
+
+DATA
+- Installed solar energy capacity (World, 2014–2025, GW): IRENA (2026) – processed by Our World in Data.
+  "Total solar capacity" [dataset]. IRENA, "Renewable Energy Statistics" [original data].
+  https://ourworldindata.org/grapher/installed-solar-pv-capacity — CC BY 4.0. Downloaded 2026-10-16 (data/).
+- Installed wind energy capacity (World, 2014–2025, GW): IRENA (2026) – processed by Our World in Data.
+  "Total wind capacity" [dataset]. IRENA, "Renewable Energy Statistics" [original data].
+  https://ourworldindata.org/grapher/cumulative-installed-wind-energy-capacity-gigawatts — CC BY 4.0. Downloaded 2026-10-16 (data/).
+
+IMAGES AND TEXTURES (CC0, Poly Haven, via the library's core/assets/polyhaven/)
+- photo_studio_loft_hall_2k.hdr — https://polyhaven.com/a/photo_studio_loft_hall (reflections)
+- american_walnut_veneer (walnut_diff / walnut_nor / walnut_rough) — https://polyhaven.com/a/american_walnut_veneer (the dial)
+Everything else (plates, acrylic, brass, the puck and its engraving, inlays, labels) is generated in code. No AI-generated images.
+
+FONTS (SIL Open Font License 1.1; subsets fetched from the Google Fonts CSS2 API by tools/fonts.mjs into fonts/)
+- Noto Sans SC, Noto Serif SC — Google / Adobe
+- Inter — Rasmus Andersson
+- JetBrains Mono — JetBrains
+
+VOICE
+- Kokoro-82M (Apache-2.0), voice af_heart, run offline through kokoro-onnx (MIT) by core/tts/tts.py.
+  Speech check: faster-whisper (MIT) with the Whisper small.en model (MIT).
+
+MUSIC AND SOUND (original score and procedural foley in demo/mix.py)
+- Samples (CC0): VS Chamber Orchestra: Community Edition (Versilian Studios) — horn, trombone, timpani, bass drum, cellos;
+  Versilian Community Sample Library (Versilian Studios) — glockenspiel, marimba, vibraphone (soft, hard, bowed), harp, tubular bells, gran cassa;
+  FreePats project (freepats.zenvoid.org) — glass harp.
+  (Lines from core/audio/sampler.py credits(); all CC0.)
+- Synthesis and foley (pad, pulse bass, metal ticks, acrylic toks, punch, air, room tone): numpy/scipy, written for this film.
+
+CODE
+- three.js r170 (MIT); the library's core/three/post.js (depth of field, GTAO, grade), core/lib.js, core/render/*, core/audio/*.

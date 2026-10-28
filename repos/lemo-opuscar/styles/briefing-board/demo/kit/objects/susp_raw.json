@@ -1,0 +1,45 @@
+{
+  "id": "susp_raw",
+  "w": 4992,
+  "h": 1091,
+  "trim": [
+    0,
+    58,
+    4992,
+    1149
+  ],
+  "anchors": {
+    "L": [
+      0.176,
+      0.962
+    ],
+    "R": [
+      0.935,
+      0.962
+    ]
+  },
+  "prep": {
+    "raw": "sources/candidates/suspension/suspension_1.jpg",
+    "id": "susp_raw",
+    "rotate": 0,
+    "crop": "380,1420,5372,2620",
+    "mask": null,
+    "mask_mul": null,
+    "mask_max": "sources/masks/susp_sky.png",
+    "thin_region": null,
+    "thin_color": null,
+    "radial": null,
+    "patch": [],
+    "poly": null,
+    "cut": [],
+    "keep_largest": false,
+    "min_island": 0.0005,
+    "erode": 0,
+    "sat": 0.35,
+    "contrast": 1.06,
+    "warm": 0.015,
+    "gamma": 1.0,
+    "exposure": 0.0,
+    "max": 5000
+  }
+}

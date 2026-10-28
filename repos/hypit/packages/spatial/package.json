@@ -1,0 +1,31 @@
+{
+  "name": "@hypit/spatial",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "devDependencies": {
+    "@hypit/compiler": "workspace:*",
+    "@hypit/source": "workspace:*",
+    "@hypit/kernel": "workspace:*",
+    "@hypit/admission": "workspace:*",
+    "@hypit/producer": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/hypit": "workspace:*"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1"
+  }
+}

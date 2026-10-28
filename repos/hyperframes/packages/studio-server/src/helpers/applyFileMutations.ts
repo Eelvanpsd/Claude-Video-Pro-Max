@@ -1,0 +1,142 @@
+import { readFileSync, statSync } from "node:fs";
+import { replaceFileAtomically } from "@hyperframes/core/atomic-file";
+import { backupPathForResponse, snapshotBeforeWrite } from "./backupJournal.js";
+import {
+  clearFileWriteReceipt,
+  createWriteToken,
+  fileContentVersion,
+  recordFileWriteReceipt,
+} from "./fileVersion.js";
+
+export interface FileMutationInput {
+  sourceFile: string;
+  absPath: string;
+  before?: string;
+  after: string;
+  expectedVersion?: string;
+}
+
+export interface AppliedFileMutation {
+  sourceFile: string;
+  changed: boolean;
+  before: string;
+  after: string;
+  backupPath: string | null;
+  version: string;
+  writeToken: string | null;
+}
+
+/** Applies prepared HTML mutations with the same journal and receipt semantics as Studio. */
+export function applyFileMutations(
+  projectDir: string,
+  mutations: readonly FileMutationInput[],
+  requestToken?: string,
+  writeFile: WriteFile = (path, content) =>
+    replaceFileAtomically(path, content, statSync(path).mode),
+): AppliedFileMutation[] {
+  const prepared = mutations.map((mutation) => ({
+    ...mutation,
+    before: mutation.before ?? readFileSync(mutation.absPath, "utf-8"),
+  }));
+  const results: AppliedFileMutation[] = [];
+  const attempted: AttemptedMutation[] = [];
+  for (const mutation of prepared)
+    assertExpectedVersion(mutation, readFileSync(mutation.absPath, "utf-8"));
+  try {
+    for (const mutation of prepared) {
+      results.push(applyOneMutation(projectDir, mutation, requestToken, writeFile, attempted));
+    }
+    return results;
+  } catch (error) {
+    const rollbackErrors = rollBack(attempted, writeFile);
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        "File mutation failed and rollback did not complete",
+      );
+    }
+    throw error;
+  }
+}
+
+type PreparedMutation = FileMutationInput & { before: string };
+type WriteFile = (path: string, content: string, encoding: "utf-8") => void;
+type AttemptedMutation = PreparedMutation & {
+  version: string;
+  writeToken: string;
+  written: boolean;
+};
+
+function rollBack(attempted: AttemptedMutation[], writeFile: WriteFile): unknown[] {
+  const errors: unknown[] = [];
+  for (const mutation of attempted.reverse()) {
+    try {
+      const current = readFileSync(mutation.absPath, "utf-8");
+      if (mutation.written ? current === mutation.after : current !== mutation.before)
+        writeFile(mutation.absPath, mutation.before, "utf-8");
+      clearFileWriteReceipt(mutation.absPath, mutation.version, mutation.writeToken);
+    } catch (rollbackError) {
+      errors.push(rollbackError);
+    }
+  }
+  return errors;
+}
+
+function applyOneMutation(
+  projectDir: string,
+  mutation: PreparedMutation,
+  requestToken: string | undefined,
+  writeFile: WriteFile,
+  attempted: AttemptedMutation[],
+): AppliedFileMutation {
+  const current = readFileSync(mutation.absPath, "utf-8");
+  assertExpectedVersion(mutation, current);
+  if (mutation.after === mutation.before) {
+    return {
+      ...mutation,
+      before: current,
+      changed: false,
+      backupPath: null,
+      version: fileContentVersion(mutation.before),
+      writeToken: null,
+    };
+  }
+  const backup = snapshotBeforeWrite(projectDir, mutation.absPath);
+  if (backup.error) throw new Error(`backup failed: ${backup.error}`);
+  assertExpectedVersion(mutation, readFileSync(mutation.absPath, "utf-8"));
+  const before = current;
+  const version = fileContentVersion(mutation.after);
+  const writeToken = createWriteToken(requestToken);
+  const attempt = { ...mutation, before, version, writeToken, written: false };
+  attempted.push(attempt);
+  writeFile(mutation.absPath, mutation.after, "utf-8");
+  attempt.written = true;
+  recordFileWriteReceipt(mutation.absPath, {
+    path: mutation.sourceFile,
+    version,
+    writeToken,
+    overwrote: before,
+  });
+  return {
+    ...mutation,
+    before,
+    changed: true,
+    backupPath: backupPathForResponse(projectDir, backup.backupPath),
+    version,
+    writeToken,
+  };
+}
+
+export class FileChangedError extends Error {
+  constructor(readonly sourceFile: string) {
+    super("file changed since the timeline was read");
+  }
+}
+
+function assertExpectedVersion(mutation: PreparedMutation, current: string): void {
+  const stale =
+    mutation.expectedVersion === undefined
+      ? current !== mutation.before
+      : fileContentVersion(current) !== mutation.expectedVersion;
+  if (stale) throw new FileChangedError(mutation.sourceFile);
+}

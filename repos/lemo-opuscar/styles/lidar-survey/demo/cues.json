@@ -1,0 +1,79 @@
+[
+ {
+  "id": "l1",
+  "t0": 0.4,
+  "t1": 3.457,
+  "zh": "从空中看，这里只是一片森林。",
+  "en": "From the air, it's only forest."
+ },
+ {
+  "id": "l2",
+  "t0": 3.9,
+  "t1": 7.16,
+  "zh": "但激光能从叶隙间穿过，",
+  "en": "But laser light slips between the leaves,"
+ },
+ {
+  "id": "l3",
+  "t0": 7.2,
+  "t1": 10.16,
+  "zh": "有一部分打到了地面。",
+  "en": "and some of it reaches the ground."
+ },
+ {
+  "id": "l4",
+  "t0": 10.2,
+  "t1": 13.692,
+  "zh": "去掉每一个打在树上的回波。",
+  "en": "Remove every return that hit a tree."
+ },
+ {
+  "id": "l5",
+  "t0": 14.5,
+  "t1": 16.91,
+  "zh": "地面还记得。",
+  "en": "And the ground remembers."
+ },
+ {
+  "id": "l6",
+  "t0": 16.95,
+  "t1": 20.81,
+  "zh": "是石墙。一块块旧田，都在树下。",
+  "en": "Stone walls. Old fields, under the trees."
+ },
+ {
+  "id": "l7",
+  "t0": 20.85,
+  "t1": 24.61,
+  "zh": "我们描出了 3.4 公里石墙。",
+  "en": "We traced 3.4 km of wall."
+ },
+ {
+  "id": "l8",
+  "t0": 24.85,
+  "t1": 27.648,
+  "zh": "高半米出头。",
+  "en": "Just over half a metre high."
+ },
+ {
+  "id": "l9",
+  "t0": 28.85,
+  "t1": 33.11,
+  "zh": "1870 年，阿什福德三分之二是农田。",
+  "en": "In 1870, two-thirds of Ashford was farmland."
+ },
+ {
+  "id": "l10",
+  "t0": 33.15,
+  "t1": 37.21,
+  "zh": "到 2006 年，五分之四已是森林。",
+  "en": "By 2006, four-fifths was forest."
+ },
+ {
+  "id": "l11",
+  "t0": 37.25,
+  "t1": 39.866,
+  "zh": "森林替它保存了地图。",
+  "en": "The forest kept the map."
+ }
+]

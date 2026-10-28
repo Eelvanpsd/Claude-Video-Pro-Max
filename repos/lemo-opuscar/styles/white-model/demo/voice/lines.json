@@ -1,0 +1,65 @@
+[
+ {
+  "id": "l1",
+  "text": "Light everything built before nineteen forty.",
+  "voice": "bm_george",
+  "speed": 1.08,
+  "lang": "en-gb",
+  "asr": "Light everything built before 1940."
+ },
+ {
+  "id": "l2",
+  "text": "May fourteenth, nineteen forty.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "May 14th, 1940."
+ },
+ {
+  "id": "l3",
+  "text": "Bombs and fire took much of the centre.",
+  "voice": "bm_george",
+  "speed": 1.05,
+  "lang": "en-gb",
+  "asr": "Bombs and fire took much of the centre."
+ },
+ {
+  "id": "l4",
+  "text": "Then, layer by layer, it grew back.",
+  "voice": "bm_george",
+  "speed": 1.08,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l5",
+  "text": "After nineteen ninety, it crossed the river, and climbed.",
+  "voice": "bm_george",
+  "speed": 1.08,
+  "lang": "en-gb",
+  "asr": "After 1990, it crossed the river, and climbed."
+ },
+ {
+  "id": "l7",
+  "text": "At midwinter noon, the sun stays below fifteen degrees.",
+  "voice": "bm_george",
+  "speed": 1.08,
+  "lang": "en-gb",
+  "asr": "At midwinter noon, the sun stays below 15 degrees."
+ },
+ {
+  "id": "l8",
+  "text": "The tallest tower's shadow runs nearly eight hundred metres,",
+  "voice": "bm_george",
+  "speed": 1.08,
+  "lang": "en-gb",
+  "asr": "The tallest tower's shadow runs nearly 800 metres,"
+ },
+ {
+  "id": "l9",
+  "text": "across sixteen roofs. Nine were there before the war.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "across 16 roofs. Nine were there before the war."
+ }
+]

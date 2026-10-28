@@ -1,0 +1,17 @@
+{
+  "package": "@hyperframes/cli",
+  "subpaths": {
+    "./api": {
+      "source": "./dist/api.js",
+      "runtime": "./dist/api.js",
+      "types": "./dist/api.d.ts",
+      "environments": ["node"]
+    },
+    "./package.json": {
+      "source": "./package.json",
+      "runtime": "./package.json",
+      "types": null,
+      "environments": ["browser", "bun", "node"]
+    }
+  }
+}

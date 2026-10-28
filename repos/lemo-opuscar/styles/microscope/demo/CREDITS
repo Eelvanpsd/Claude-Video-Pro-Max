@@ -1,0 +1,48 @@
+Measured Blue (量出来的蓝) — Microscope Story (Lemo-Opuscar) · LemoLab × Claude Opus 5.5
+
+No AI-generated images, no stock footage. Every pixel of glass and tissue is one real whole-slide scan and the
+scanner's own photo of that slide; every line, label and number is drawn in code from the file's metadata.
+
+IMAGERY
+- Ventana-1.bif — human liver, trichrome stain, brightfield, scanned on a VENTANA DP 200
+  (XMP ScanRes 0.25 um/px at level 0; pyramid levels labelled mag=40/20/10/5/2.5/1.25 in their ImageDescription;
+  the scanner's photo of the whole slide, TIFF page "Label_Image", 21.167 um/px from its XResolution tag).
+  Credit: PathAI. Licence: CC0-1.0 (public-domain dedication), per the OpenSlide test-data index
+  https://openslide.cs.cmu.edu/download/openslide-testdata/Ventana/index.yaml
+  Downloaded 2026-10-16 from https://openslide.cs.cmu.edu/download/openslide-testdata/Ventana/Ventana-1.bif
+  sha256 2eb05cd8f628c36408c3fde09beeeebaaae90181c4f840d5475ec7594bdcbbb6
+  Hosted by the OpenSlide project (Carnegie Mellon University).
+  Modifications (tools/plates.py): crops; one shared colour grade (glass normalised to a warm white, +12 % density,
+  +10 % chroma); a 0.3 mm alpha feather at the scan edge; on the slide photo: cut out of the scanner tray (tray bars
+  replaced by the neighbouring frosted glass, tray clips at the far end filled with the glass of the same row),
+  line-sensor streaks removed column by column, and the slide maker's printed logo between label and cover glass
+  filled with the surrounding frosted glass. The slide's own label (specimen ID, barcode) is shown as photographed.
+
+MEASUREMENTS (all computed here, from the file; method and values in FACTS.md)
+- Scale bar, field of view: level-0 pixel size 0.25 um/px. Magnification readout: the "mag=" of the level on screen.
+- Tissue length 4.80 mm, collagen shares 13.5 % / 32.6 % in two 1 mm circles, nucleus 8.5 um.
+
+FONTS (SIL Open Font License 1.1, licence texts in fonts/; Chinese fonts subset with the Google Fonts API &text=)
+- Noto Sans SC — Google / Adobe (labels, subtitles)
+- Noto Serif SC — Google / Adobe (title)
+- Barlow Condensed — The Barlow Project Authors (readings, English subtitle line)
+- IBM Plex Mono — IBM (instruments, pixel counts, credit line)
+
+VOICE
+- Kokoro-82M (hexgrad), voice af_heart, Apache License 2.0; run locally via kokoro-onnx (MIT) through the
+  library's core/tts/tts.py. Speech check: faster-whisper small.en (MIT; OpenAI Whisper weights, MIT).
+
+MUSIC AND SOUND (original score and foley, made in code for this film: mix.py)
+- Sampled instruments through core/audio/sampler.py, all CC0 1.0:
+  vibraphone, vibraphone_hard, vibraphone_bowed, marimba, glockenspiel — Versilian Community Sample Library (VCSL)
+  https://github.com/sgossner/VCSL
+  glass (water glasses) — FreePats project https://freepats.zenvoid.org
+  timpani, bass_drum — VS Chamber Orchestra: Community Edition (Versilian Studios / Sam Gossner)
+  https://github.com/sgossner/VSCO-2-CE
+  gran_cassa, sus_cymbal — VCSL
+- Synthesized in numpy (no samples): pulse bass, objective turret click and servo, pen on glass, scan noise and
+  counter ticks, focal sweep, whooshes, riser, room tone.
+
+SOFTWARE
+- Rendering: the library's core/render (headless Chromium, canvas 2D), ffmpeg / x264, core/render/mux.sh.
+- Slide reading: tifffile + imagecodecs (BSD), numpy, scipy, Pillow.

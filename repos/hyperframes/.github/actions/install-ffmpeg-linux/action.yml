@@ -1,0 +1,37 @@
+name: Install ffmpeg (Linux)
+description: >-
+  Put a pinned static ffmpeg and ffprobe from BtbN/FFmpeg-Builds on PATH. No
+  apt: its mirror has taken up to 10 minutes.
+
+inputs:
+  release-url:
+    description: >-
+      BtbN/FFmpeg-Builds linux64 tarball. Bump the tag, filename and sha256
+      together, and keep in sync with the Dockerfiles' FFMPEG pins.
+    required: false
+    default: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-02-28-12-59/ffmpeg-n8.0.1-66-g27b8d1a017-linux64-gpl-8.0.tar.xz
+  sha256:
+    description: sha256 of the tarball, from the release's checksums.sha256.
+    required: false
+    default: 26d2ecd0cefba99f9d1ea92252a3a4f743a58df4c1c3cf9f8bbaaa40b1fca5b0
+
+runs:
+  using: composite
+  steps:
+    - name: Install ffmpeg
+      shell: bash
+      env:
+        URL: ${{ inputs.release-url }}
+        SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+        archive="$RUNNER_TEMP/${URL##*/}"
+        # Two attempts of at most 20 s keep the install under a minute.
+        curl -fsSL --retry 1 --retry-all-errors --retry-max-time 25 --connect-timeout 10 --max-time 20 \
+          --speed-limit 5000000 --speed-time 10 -o "$archive" "$URL"
+        sha256sum -c --quiet <<<"$SHA256  $archive"
+        bin="$RUNNER_TEMP/ffmpeg-bin"
+        mkdir -p "$bin"
+        tar -xJf "$archive" -C "$bin" --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+        echo "$bin" >> "$GITHUB_PATH"
+        "$bin/ffmpeg" -version | head -1

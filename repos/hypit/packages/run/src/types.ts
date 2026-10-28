@@ -1,0 +1,145 @@
+import type {
+  CompiledSourceClosure,
+  GraphFragment,
+} from "@hypit/author";
+import type {
+  Candidate,
+  CanonicalValue,
+  OperationNode,
+  RunGraph,
+  Satisfaction,
+  TypeRef,
+} from "@hypit/protocol";
+export type { RunGraph } from "@hypit/protocol";
+import type { SourceUnit } from "@hypit/source";
+
+export type RunSourceUnit = SourceUnit;
+
+export type RunFrontendSourceUnit = RunSourceUnit;
+
+export type RunAuthorSourceRequest = {
+  readonly source: string;
+};
+
+export type RunImport = {
+  readonly from: string;
+  readonly as: string;
+};
+
+export type RunTarget = {
+  readonly output: string;
+};
+
+export type RunProvidedValue = {
+  readonly kind: "provided";
+  readonly id: string;
+  readonly type: TypeRef;
+  /** File containing one StoredValue JSON object. */
+  readonly from: string;
+};
+
+/** Ordinary source file admitted as one Resource Candidate of an explicitly named blob Type. */
+export type RunProvidedFile = {
+  readonly kind: "file";
+  readonly id: string;
+  readonly type: TypeRef;
+  readonly from: string;
+  readonly mediaType: string;
+};
+
+export type RunBuildRecord = {
+  readonly kind: "build-record";
+  readonly id: string;
+  readonly build: string;
+  /** Unique public Output name inside the prior Build Result. */
+  readonly output: string;
+};
+
+export type RunFragmentInput =
+  | {
+      readonly name: string;
+      /** Public author-source export. */
+      readonly from: string;
+    }
+  | {
+      readonly name: string;
+      /** An ordinary scalar owned by this Run, typed by the Fragment input declaration. */
+      readonly value: CanonicalValue;
+    };
+
+export type RunFragmentInstance = {
+  readonly kind: "fragment";
+  readonly id: string;
+  readonly using: {
+    readonly alias: string;
+    readonly name: string;
+  };
+  readonly inputs: readonly RunFragmentInput[];
+  /** Omitted means every Fragment export. */
+  readonly exports?: readonly string[];
+};
+
+export type RunCandidateDeclaration = RunProvidedValue | RunProvidedFile | RunBuildRecord | RunFragmentInstance;
+
+export type RunSatisfaction = {
+  readonly output: string;
+  /** Candidate id, or `fragment-instance.export`. */
+  readonly candidate: string;
+};
+
+export type RunDocument = {
+  readonly format: "hypit.run-document@1";
+  readonly author: RunAuthorSourceRequest;
+  readonly imports: readonly RunImport[];
+  readonly targets: readonly RunTarget[];
+  readonly candidates: readonly RunCandidateDeclaration[];
+  readonly satisfactions: readonly RunSatisfaction[];
+};
+
+export type RunSourceDiscovery = {
+  readonly author: RunAuthorSourceRequest;
+  readonly imports: readonly RunImport[];
+};
+
+export type DecodedRunSource = {
+  readonly document: RunDocument;
+};
+
+export type RunFrontend = {
+  readonly id: string;
+  discover(source: RunFrontendSourceUnit): RunSourceDiscovery | Promise<RunSourceDiscovery>;
+  decode(source: RunFrontendSourceUnit): DecodedRunSource | Promise<DecodedRunSource>;
+};
+
+export interface RunFrontendRegistryLike {
+  resolve(id: string): RunFrontend | undefined;
+}
+
+export type RunFragmentPackage = {
+  readonly name: string;
+  readonly fragments: Readonly<Record<string, GraphFragment>>;
+};
+
+export interface RunFragmentRegistryLike {
+  resolve(packageName: string, fragmentName: string): GraphFragment | undefined;
+}
+
+export type ResolveRunDocumentContext = {
+  readonly compilation: CompiledSourceClosure;
+  readonly fragments: RunFragmentRegistryLike;
+};
+
+export type RunCandidateSource =
+  | { readonly kind: "stored-value"; readonly from: string }
+  | { readonly kind: "file"; readonly from: string; readonly mediaType: string }
+  | { readonly kind: "build-output"; readonly build: string; readonly output: string };
+
+export type RunCompilation = {
+  readonly document: RunDocument;
+  readonly graph: RunGraph;
+  readonly candidates: Readonly<Record<string, string>>;
+  /** Sources for zero-input Candidates, materialized only after global planning selects them. */
+  readonly candidateSources: Readonly<Record<string, RunCandidateSource>>;
+  /** Author-written Candidate name selected for each resolved Logical Output. Presentation only. */
+  readonly satisfactionNames: Readonly<Record<string, string>>;
+};

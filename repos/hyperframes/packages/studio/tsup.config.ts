@@ -1,0 +1,37 @@
+import { defineConfig } from "tsup";
+
+export default defineConfig({
+  tsconfig: "tsconfig.lib.json",
+  entry: {
+    index: "src/index.ts",
+    ui: "src/ui.ts",
+    player: "src/playerEntry.ts",
+    "styles/tailwind-preset": "src/styles/tailwind-preset.ts",
+  },
+  format: ["esm"],
+  dts: true,
+  clean: false,
+  splitting: true,
+  external: [
+    "@codemirror/autocomplete",
+    "@codemirror/commands",
+    "@codemirror/lang-css",
+    "@codemirror/lang-html",
+    "@codemirror/lang-javascript",
+    "@codemirror/lang-markdown",
+    "@codemirror/language",
+    "@codemirror/search",
+    "@codemirror/state",
+    "@codemirror/view",
+    "@hyperframes/core",
+    "@hyperframes/player",
+    "@hyperframes/sdk",
+    "@lezer/highlight",
+    "@phosphor-icons/react",
+    "mediabunny",
+    "react",
+    "react-dom",
+    "react/jsx-runtime",
+    "zustand",
+  ],
+});

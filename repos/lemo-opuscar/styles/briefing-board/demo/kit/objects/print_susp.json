@@ -1,0 +1,15 @@
+{
+  "id": "print_susp",
+  "w": 1200,
+  "h": 571,
+  "anchors": {},
+  "print": true,
+  "prep": {
+    "src": "sources/candidates/suspension/suspension_1.jpg",
+    "id": "print_susp",
+    "crop": "0,1150,5372,3450",
+    "w": 1100,
+    "border": 0.045,
+    "sat": 0.85
+  }
+}

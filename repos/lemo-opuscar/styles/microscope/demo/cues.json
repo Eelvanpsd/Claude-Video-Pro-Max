@@ -1,0 +1,51 @@
+[
+ {
+  "id": "v1",
+  "t0": 0.55,
+  "t1": 4.133,
+  "zh": "一张玻片，一片人肝组织。",
+  "en": "One glass slide. One slice of human liver."
+ },
+ {
+  "id": "v2",
+  "t0": 5.62,
+  "t1": 10.667,
+  "zh": "宽 4.8 毫米。染色让胶原呈蓝色。",
+  "en": "4.8 mm across. The stain turns collagen blue."
+ },
+ {
+  "id": "v3",
+  "t0": 10.95,
+  "t1": 15.995,
+  "zh": "这个直径 1 毫米的圆里，蓝色占 13.5%。",
+  "en": "In this 1 mm circle, blue covers 13.5%."
+ },
+ {
+  "id": "v4",
+  "t0": 16.85,
+  "t1": 20.963,
+  "zh": "相隔 1.4 毫米：32.6%。",
+  "en": "1.4 mm away: 32.6%."
+ },
+ {
+  "id": "v5",
+  "t0": 22.7,
+  "t1": 27.152,
+  "zh": "同一片组织，同一种染色，蓝色是 2.4 倍。",
+  "en": "Same slice, same stain: 2.4 times the blue."
+ },
+ {
+  "id": "v6",
+  "t0": 29.35,
+  "t1": 33.01,
+  "zh": "一个细胞核，直径 8.5 微米。",
+  "en": "One nucleus, 8.5 microns across."
+ },
+ {
+  "id": "v7",
+  "t0": 33.05,
+  "t1": 36.656,
+  "zh": "每个数字，都量自这张扫描本身。",
+  "en": "Every number here was measured from the scan itself."
+ }
+]

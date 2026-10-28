@@ -1,0 +1,1613 @@
+name: CI
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Checks (catalog_publish={0})', inputs.catalog_publish) || '' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# Suppress hyperframes CLI telemetry from HeyGen's own CI runs.
+# External users' CI continues to emit telemetry unless they set this themselves.
+env:
+  HYPERFRAMES_NO_TELEMETRY: "1"
+
+on:
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+    inputs:
+      catalog_publish:
+        description: "Run required checks for a generated catalog publication."
+        type: boolean
+        default: false
+  pull_request:
+    # `edited` is required so the workflow re-fires when a PR's base ref is
+    # set back to `main` after a Graphite stack restack momentarily flips
+    # the base off of `main`. Without it, `pull_request` triggers are not
+    # re-evaluated on `base_ref_changed`, leaving required checks skipped
+    # for that head SHA forever.
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A body or title edit queues behind running checks instead of cancelling them.
+  cancel-in-progress: ${{ github.event.action != 'edited' || github.event.changes.base != null }}
+
+jobs:
+  test-reachability:
+    name: Test reachability
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      # A history fetch now and then stalls until the job's limit; a second fetch gets through.
+      - id: checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+      - if: steps.checkout.outcome != 'success'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        timeout-minutes: 1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Report base reachability
+        if: github.event_name == 'pull_request'
+        # HEAD is the PR merge ref; its first parent is the current base tip,
+        # which stays correct even when pull_request.base.sha is stale.
+        run: |
+          BASE_SHA="$(git rev-parse HEAD^1)"
+          git worktree add --detach "$RUNNER_TEMP/reachability-base" "$BASE_SHA"
+          (cd "$RUNNER_TEMP/reachability-base" && node scripts/check-test-reachability.mjs --report)
+          git worktree remove "$RUNNER_TEMP/reachability-base"
+      - name: Report head reachability
+        run: node scripts/check-test-reachability.mjs --report
+      - run: node --test scripts/check-test-reachability.test.mjs
+      - run: node scripts/check-test-reachability.mjs
+
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ (github.event_name == 'workflow_dispatch' && inputs.catalog_publish) && 'true' || steps.filter.outputs.code }}
+      docs_catalog: ${{ steps.filter.outputs.docs_catalog }}
+      cli: ${{ steps.filter.outputs.cli }}
+      cli_bundle: ${{ steps.filter.outputs.cli_bundle }}
+      skills: ${{ steps.filter.outputs.skills }}
+      catalog_index: ${{ steps.filter.outputs.catalog_index }}
+      codex_plugin: ${{ steps.filter.outputs.codex_plugin }}
+      gcp_beginframe: ${{ steps.filter.outputs.gcp_beginframe }}
+      studio: ${{ steps.filter.outputs.studio }}
+      edit_accuracy: ${{ steps.edit_accuracy_filter.outputs.edit_accuracy }}
+    steps:
+      # Force git-based change detection instead of the pull_request REST API.
+      # The API path can fail the whole workflow on transient listFiles
+      # timeouts before any real CI work starts.
+      # A history fetch now and then stalls until the job's limit; a second fetch gets through.
+      - id: checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        timeout-minutes: 1
+        continue-on-error: true
+        with:
+          fetch-depth: 0
+      - if: steps.checkout.outcome != 'success'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        timeout-minutes: 1
+        with:
+          fetch-depth: 0
+      - name: Check whether this commit already passed before a title or body edit
+        id: edit
+        uses: ./.github/actions/edit-already-passed
+      - name: Reject accidental file deletions
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-no-main-deletions.mjs --base origin/main
+      # HEAD is the PR merge ref; its first parent is the current base tip, unlike the payload's
+      # base.sha, which goes stale and would count the base's newer commits as the PR's changes.
+      - name: Find the pull request's current base
+        id: base
+        if: github.event_name == 'pull_request'
+        run: |
+          git rev-parse --verify -q HEAD^2 > /dev/null || { echo "::error::HEAD is not the pull request merge commit"; exit 1; }
+          sha="$(git rev-parse --verify HEAD^1)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Reject large binaries outside LFS
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: sh scripts/check-large-files.sh --range "$BASE_SHA" HEAD
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        id: filter
+        if: steps.edit.outputs.passed != 'true'
+        with:
+          token: ""
+          base: ${{ steps.base.outputs.sha }}
+          filters: |
+            catalog_index:
+              - "registry/**"
+              - "registry/catalog-artifact/**"
+              - "skills/media-use/audio/assets/sfx/**"
+              - "scripts/catalog/check-artifact-coverage.ts"
+            docs_catalog:
+              - "skills/media-use/audio/assets/sfx/**"
+              - "docs/**"
+              - "registry/**"
+              - "scripts/*catalog*"
+              - "scripts/catalog-fetch-mirror/**"
+              - "scripts/docs-catalog-shared.mjs"
+              - "packages/core/**"
+              - "packages/producer/**"
+              - "package.json"
+              - ".github/workflows/ci.yml"
+            code:
+              - "registry/**"
+              - "packages/**"
+              - "scripts/**"
+              - "package.json"
+              - "bun.lock"
+              - "tsconfig*.json"
+              - "Dockerfile*"
+              - ".github/workflows/**"
+              - ".github/actions/**"
+            cli:
+              - "packages/cli/**"
+              - "package.json"
+              - "bun.lock"
+              - ".github/workflows/ci.yml"
+            # Skills packages/cli/scripts/build-copy.mjs bundles into the CLI tarball (size budget).
+            cli_bundle:
+              - "skills/hyperframes/**"
+              - "skills/hyperframes-cli/**"
+              - "skills/gsap/**"
+              - "skills/media-use/**"
+            skills:
+              - "scripts/generate-captured-font-copies.mjs"
+              - "packages/cli/src/media-use/**"
+              - "scripts/check-media-use-copy-parity.test.mjs"
+              - "scripts/check-skill-import-boundaries.test.mjs"
+              - "scripts/generate-skill-module-copies.mjs"
+              - "skills/**"
+              - ".claude/skills/**"
+              - ".agents/skills/**"
+              - "skills-manifest.json"
+              - "scripts/lint-skills.ts"
+              - "scripts/check-skill-mirror.mjs"
+              - "package.json"
+              - ".github/workflows/ci.yml"
+              - ".github/actions/install-ffmpeg-linux/**"
+            codex_plugin:
+              - "skills-manifest.json"
+              - "packages/cli/package.json"
+              - "plugin.json"
+              - "gemini-extension.json"
+              - ".claude-plugin/**"
+              - ".cursor-plugin/**"
+              - "scripts/package-agent-plugin*"
+              - "scripts/agent-plugin-captions.test.mjs"
+              - "scripts/set-version*"
+              - "LICENSE"
+              - ".codex-plugin/**"
+              - "assets/**"
+              - "skills/**"
+              - "scripts/package-codex-plugin.mjs"
+              - "package.json"
+              - ".github/workflows/ci.yml"
+            studio:
+              - "packages/studio/**"
+              - "packages/core/**"
+              - "packages/studio-server/**"
+              - "bun.lock"
+              - ".github/workflows/ci.yml"
+            gcp_beginframe:
+              - "packages/gcp-cloud-run/Dockerfile"
+              - "packages/aws-lambda/scripts/probe-beginframe.ts"
+              - "packages/engine/src/services/browserManager.ts"
+              - "package.json"
+              - "bun.lock"
+              - ".github/workflows/ci.yml"
+      # Only what the edit accuracy bench runs: the Studio it drives, the preview server the CLI hosts it from,
+      # and the engine and producer modules it captures frames with (the import closure of browserManager,
+      # frameCapture and both fileServers). Encoders, renders and other CLI commands are not on its path.
+      # Its own base: the merge queue's is the event's base_sha, since that run's HEAD is not a PR merge commit.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        id: edit_accuracy_filter
+        if: steps.edit.outputs.passed != 'true' && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+        with:
+          token: ""
+          base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || steps.base.outputs.sha }}
+          predicate-quantifier: some-with-excludes
+          filters: |
+            edit_accuracy:
+              - "packages/studio/src/**"
+              - "packages/studio/index.html"
+              - "packages/studio/vite.*.ts"
+              - "packages/studio/public/**"
+              - "packages/studio/tests/e2e/edit-accuracy/**"
+              - "packages/studio/tests/e2e/webmcp-host.mjs"
+              - "packages/studio-server/src/**"
+              - "packages/core/src/**"
+              - "packages/core/scripts/**"
+              - "packages/core/schemas/**"
+              - "packages/parsers/src/**"
+              - "packages/player/src/**"
+              - "packages/sdk/src/**"
+              - "packages/lint/src/**"
+              - "packages/cli/src/{cli,help,version}.ts"
+              - "packages/cli/src/renderSetupWorker*.ts"
+              - "packages/cli/src/commands/{preview*,add,browser}.ts"
+              - "packages/cli/src/server/**"
+              - "packages/cli/src/browser/**"
+              - "packages/cli/src/utils/**"
+              - "packages/cli/src/ui/**"
+              - "packages/cli/src/{background-removal,registry,telemetry}/**"
+              - "packages/cli/src/capture/{captureCompositionFrame,captureTimeout,navigateForCapture,readBoundedResponse}.ts"
+              - "packages/cli/src/media-use/lib/config-lock.mjs"
+              - "packages/cli/scripts/**"
+              - "packages/core/stubs/**"
+              - "packages/engine/src/**"
+              - "packages/producer/src/**"
+              - "packages/producer/stubs/**"
+              - "packages/producer/scripts/build-hf-early-stub.ts"
+              - "packages/producer/build*.mjs"
+              - "packages/player/scripts/verify-runtime-pin.mjs"
+              - "packages/{studio,studio-server,core,parsers,player,sdk,lint,cli,engine,producer}/{package.json,tsconfig.json,tsup.config.ts}"
+              - "packages/*/package-subpaths.json"
+              - "scripts/package-subpaths.mjs"
+              - "scripts/rewrite-relative-import-extensions.mjs"
+              - "scripts/ci/base-file.sh"
+              - "scripts/ci/edit-accuracy-shard.sh"
+              - "scripts/ci/install-workspace-dependencies.sh"
+              - ".github/actions/prepare-ffmpeg-bin/**"
+              - "package.json"
+              - "bun.lock"
+              - ".github/workflows/ci.yml"
+              - "!**/*.{test,spec}.{ts,tsx,mjs,js}"
+              - "!**/{__tests__,__fixtures__}/**"
+              - "!**/*.md"
+
+  gcp-beginframe-contract:
+    name: GCP BeginFrame image contract
+    needs: changes
+    if: needs.changes.outputs.gcp_beginframe == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          # Docker Hub rate-limits anonymous pulls from shared runners; pull through Google's mirror.
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
+      - name: Build BeginFrame contract image
+        # A hung bun install (Dockerfile.test, run 35468046055) would
+        # otherwise eat the whole job timeout instead of failing at this step.
+        timeout-minutes: 10
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: packages/gcp-cloud-run/Dockerfile
+          target: beginframe-contract
+          push: false
+          cache-from: type=gha,scope=gcp-beginframe-contract
+          cache-to: type=gha,mode=max,scope=gcp-beginframe-contract
+
+  build:
+    name: Build
+    needs: changes
+    # A skipped required check passes, so a broken change detection must fail it instead.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true' || needs.changes.outputs.cli_bundle == 'true' || needs.changes.outputs.edit_accuracy == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require change detection
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::Detect changes did not succeed (it also rejects large binaries outside LFS); see its log. This required check cannot pass."
+          exit 1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.17.1 --activate
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run build
+      - run: bun run verify:packed-manifests
+      - name: Share the built CLI with the edit accuracy shards
+        if: needs.changes.outputs.edit_accuracy == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: edit-accuracy-cli
+          path: packages/cli/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  lint:
+    name: Lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.docs_catalog == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun scripts/generate-registry-items.ts
+      - run: bun run lint
+
+  # Loads every catalog payload a PR changes in headless Chrome. A static scan of the
+  # markup cannot see an asset a script fetches, and the docs host serves only fonts,
+  # images and JSON, so a payload that runs locally can 404 there.
+  catalog-payloads:
+    name: Catalog payloads
+    needs: changes
+    if: needs.changes.outputs.docs_catalog == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --cwd packages/core build:hyperframes-runtime
+      - name: Keep catalog source PRs source-only
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-catalog-source-pr.mjs origin/main
+      - name: Generate and validate catalog
+        env:
+          PUBLISH_PR: ${{ (github.head_ref || github.ref_name) == 'bot/catalog-publish' }}
+        run: |
+          if [ "$PUBLISH_PR" = "true" ]; then
+            bun run check:catalog-drift --committed
+          else
+            bun run check:catalog-drift
+          fi
+      - run: bun run verify:catalog-payloads --changed origin/main
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: catalog-index
+          path: |
+            registry/registry.json
+            registry/catalog-artifact/local-vectors.json
+            registry/catalog-artifact/local-vectors.bin
+
+  # `fallow audit` runs dead-code + complexity + duplication analysis scoped to
+  # the changed files. The default `--gate new-only` means existing legacy
+  # findings don't fail the build — only NEW issues introduced by the PR do.
+  # This stops bleeding while letting incremental cleanup land separately.
+  #
+  # On findings, the job posts (or updates) a sticky comment on the PR so
+  # reviewers see the full list inline instead of digging through CI logs.
+  fallow:
+    name: Fallow audit
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Scope write access to this single job — the rest of `ci.yml` keeps the
+    # workflow-level `pull-requests: read` default so build / lint / test
+    # tokens can't post or modify PR comments. Job-level permissions override
+    # the workflow block.
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Full history so `--base origin/main` can diff against the merge
+          # base on stacked PRs, not just the shallow tip.
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - name: Build generated inspector inputs
+        run: |
+          bun run --filter '@hyperframes/{parsers,lint}' build
+          bun run build:hyperframes-runtime
+          bun run --filter @hyperframes/inspector build
+      - name: Run fallow audit
+        id: audit
+        # `bun install` above made `bunx fallow` resolve from node_modules, so
+        # we don't re-download fallow each run. The script disables `errexit`
+        # so the audit's non-zero exit (on findings) doesn't abort before we
+        # write the exit code to the step output. The size check guards
+        # against fallow crashing before producing markdown (e.g. transient
+        # parse failure) — without it we'd post a blank sticky comment.
+        run: |
+          set +e
+          bunx fallow audit --base origin/main --fail-on-issues \
+            --format pr-comment-github \
+            > /tmp/fallow-comment.md
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          if [ ! -s /tmp/fallow-comment.md ]; then
+            echo "fallow produced no output — see the job logs above." > /tmp/fallow-comment.md
+          fi
+      - name: Post sticky comment (findings)
+        if: steps.audit.outputs.exit_code != '0'
+        # Fork PRs run with a read-only GITHUB_TOKEN regardless of the
+        # workflow's `permissions:` block, so the comment post will fail on
+        # forks. Don't fail the whole job — the audit gate below still fires.
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
+        with:
+          # `header` matches fallow's built-in `<!-- fallow-id: fallow-results -->`
+          # sentinel so subsequent runs update the same comment.
+          header: fallow-results
+          path: /tmp/fallow-comment.md
+      - name: Remove stale sticky comment (clean run)
+        if: steps.audit.outputs.exit_code == '0'
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
+        with:
+          header: fallow-results
+          delete: true
+      - name: Fail if audit found issues
+        if: steps.audit.outputs.exit_code != '0'
+        run: |
+          echo "::error::Fallow audit found new issues — see the PR comment above for details."
+          exit 1
+
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run format:check
+
+  typecheck:
+    name: Typecheck
+    needs: changes
+    # A skipped required check passes, so a broken change detection must fail it instead.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require change detection
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::Detect changes did not succeed (it also rejects large binaries outside LFS); see its log. This required check cannot pass."
+          exit 1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run build
+      - run: bun run --filter '*' typecheck
+      - run: bun run typecheck:scripts
+
+  test-studio:
+    name: Test (studio)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install FFmpeg for catalog preview tests
+        uses: ./.github/actions/install-ffmpeg-linux
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --cwd packages/core build:hyperframes-runtime
+      - run: bun run --cwd packages/studio test
+
+  test-runtime:
+    name: Test (runtime)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/install-ffmpeg-linux
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --cwd packages/core build:hyperframes-runtime
+      - run: bun run --filter '@hyperframes/{cli,core,engine}' test
+
+  test-support:
+    name: Test (support)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/install-ffmpeg-linux
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --cwd packages/core build:hyperframes-runtime
+      - name: Install Chrome for catalog preview tests
+        id: catalog-chrome
+        uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce # v1
+        with:
+          chrome-version: stable
+      - run: bun run generate:catalog
+        if: needs.changes.outputs.docs_catalog == 'true'
+      - run: bun run test:scripts
+        env:
+          HYPERFRAMES_BROWSER_PATH: ${{ steps.catalog-chrome.outputs.chrome-path }}
+      - run: bun run --filter '@hyperframes/{lint,parsers,studio-server,sdk,player,aws-lambda,gcp-cloud-run,sdk-playground,shader-transitions,inspector}' test
+
+  test:
+    name: Test
+    needs: [changes, producer-source-tests, test-studio, test-runtime, test-support, test-skills]
+    # Keep the existing required `Test` context authoritative for producer
+    # failures too. It also fails closed if any package shard fails or is cancelled.
+    if: always() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true' || needs.changes.outputs.skills == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Require change detection
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::Detect changes did not succeed (it also rejects large binaries outside LFS); see its log. This required check cannot pass."
+          exit 1
+      - name: Require producer source tests
+        if: needs.changes.outputs.code == 'true' && needs.producer-source-tests.result != 'success'
+        run: |
+          echo "::error::Producer unit/integration tests did not succeed."
+          exit 1
+      - name: Require package test shards
+        if: needs.changes.outputs.code == 'true' && (needs.test-studio.result != 'success' || needs.test-runtime.result != 'success' || needs.test-support.result != 'success')
+        run: |
+          echo "::error::A package test shard did not succeed."
+          echo "studio=${{ needs.test-studio.result }} runtime=${{ needs.test-runtime.result }} support=${{ needs.test-support.result }}"
+          exit 1
+      - name: Require skills tests
+        if: needs.changes.outputs.skills == 'true' && needs.test-skills.result != 'success'
+        run: |
+          echo "::error::Skills tests did not succeed."
+          exit 1
+
+  producer-source-tests:
+    name: "Producer: ${{ matrix.lane }} tests"
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [unit, integration]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install FFmpeg for integration tests
+        if: matrix.lane == 'integration'
+        uses: ./.github/actions/install-ffmpeg-linux
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --filter @hyperframes/engine build
+      - run: bun run producer:test:${{ matrix.lane }}
+
+  # Tests under skills/**/*.test.mjs are bare `node --test` files with only
+  # `node:` built-in imports. They aren't part of any workspace package, and
+  # the main `Test` job's `code` path filter excludes `skills/**`, so without
+  # this dedicated job they'd never run in CI. Examples:
+  #   * packages/cli/src/media-use/resolve.test.mjs
+  #   * packages/cli/src/media-use/lib/manifest.test.mjs
+  # Several of these are regression guards (e.g. shell-injection cases), so
+  # the whole point is that they fire on PRs that touch skills/.
+  test-skills:
+    name: "Test: skills"
+    needs: changes
+    if: needs.changes.outputs.skills == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/install-ffmpeg-linux
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Verify standalone skill imports
+        run: bun test scripts/check-skill-import-boundaries.test.mjs
+      - name: Discover and run skills tests
+        env:
+          HYPERFRAMES_MEDIA_HOME_REQUIRED: "1"
+        # We expand the test list via bash so the job fails loudly when the
+        # matcher comes back empty, rather than silently no-op'ing (which
+        # would defeat the whole point of this job).
+        run: |
+          set -euo pipefail
+          mapfile -t SKILLS_TESTS < <(find skills packages/cli/src/media-use -type f -name "*.test.mjs" | sort)
+          if [ "${#SKILLS_TESTS[@]}" -eq 0 ]; then
+            echo "::error::No skills/**/*.test.mjs files found. Did the layout change?"
+            exit 1
+          fi
+          SKILLS_TESTS+=(scripts/check-media-use-copy-parity.test.mjs scripts/creator-editing-capabilities.test.mjs)
+          printf 'Running %d skills test file(s):\n' "${#SKILLS_TESTS[@]}"
+          printf '  * %s\n' "${SKILLS_TESTS[@]}"
+          node --import ./packages/cli/scripts/test-home.mjs --test "${SKILLS_TESTS[@]}"
+
+  test-skill-bootstrap-windows:
+    name: "Test: skill bootstrap (Windows, Node 24)"
+    needs: changes
+    if: needs.changes.outputs.skills == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Exercise npm-cli bootstrap command
+        run: >-
+          node --test
+          skills/hyperframes-animation/scripts/package-loader.test.mjs
+          skills/hyperframes-creative/scripts/package-loader.test.mjs
+          skills/hyperframes/scripts/plugin-cli.test.mjs
+
+  # Guards that skills-manifest.json (the published freshness fingerprint read
+  # by `hyperframes skills check`) was regenerated when a skill changed. Runs
+  # `gen:skills-manifest --check`, which compares per-skill content hashes; the
+  # manifest carries no version/timestamp, so it only fails on real content
+  # drift. bun runs the TS script directly, no install needed.
+  catalog-index-coverage:
+    name: "Catalog: search index covers the registry"
+    needs: [changes, catalog-payloads]
+    if: needs.changes.outputs.catalog_index == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: catalog-index
+          path: registry
+      - name: Verify every searchable registry item has a vector
+        run: bun scripts/catalog/check-artifact-coverage.ts
+
+  skills-manifest:
+    name: "Skills: manifest in sync"
+    needs: changes
+    if: needs.changes.outputs.skills == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Verify skills-manifest.json matches skills/
+        run: bun packages/cli/scripts/gen-skills-manifest.ts --check
+
+  # Repo-native project skills live under .claude/skills/ (Claude Code) and
+  # .agents/skills/ (Codex CLI). Runs the skill validator against all three
+  # locations (skills/, .claude/skills/, .agents/skills/) and verifies the two
+  # project-skill trees stay byte-identical mirrors of each other. Fires on
+  # any change to the skill dirs or the two validating scripts.
+  project-skills-check:
+    name: "Skills: project-native lint + mirror"
+    needs: changes
+    if: needs.changes.outputs.skills == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Lint SKILL.md files across skills/, .claude/skills/, .agents/skills/
+        run: bun scripts/lint-skills.ts
+      - name: Verify .claude/skills/ and .agents/skills/ are byte-identical
+        run: node scripts/check-skill-mirror.mjs
+
+  codex-plugin-package:
+    name: "Codex plugin package"
+    needs: changes
+    if: needs.changes.outputs.codex_plugin == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Test portable plugin packaging
+        run: node --test scripts/package-agent-plugin.test.mjs
+      - name: Build portable agent plugin
+        run: node scripts/package-agent-plugin.mjs
+      - name: Exercise captions from the extracted portable bundle
+        run: node --test scripts/agent-plugin-captions.test.mjs
+      - name: Build upload-ready Codex plugin
+        run: node scripts/package-codex-plugin.mjs
+
+  cli-npx-shim:
+    name: "CLI: npx shim (${{ matrix.os }})"
+    needs: changes
+    if: needs.changes.outputs.cli == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        if: runner.os != 'Windows'
+        run: bash scripts/ci/install-workspace-dependencies.sh --ignore-scripts
+      - name: Install dependencies
+        if: runner.os == 'Windows'
+        run: bun install --frozen-lockfile --ignore-scripts --linker=hoisted
+      - run: bun run --cwd packages/cli test src/utils/npxCommand.test.ts src/commands/skills.test.ts
+
+  sdk-tests:
+    name: "SDK: unit + contract + smoke"
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      # Build workspace deps so the sdk's @hyperframes/parsers + core subpath
+      # imports resolve via the "node" export condition (dist) under vitest.
+      - run: bun run --filter '@hyperframes/parsers' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --filter @hyperframes/sdk test
+
+  test-runtime-contract:
+    name: "Test: runtime contract"
+    needs: changes
+    # A skipped required check passes, so a broken change detection must fail it instead.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require change detection
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::Detect changes did not succeed (it also rejects large binaries outside LFS); see its log. This required check cannot pass."
+          exit 1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      # Runtime coverage now imports core modules that consume workspace
+      # subpaths. Build their dist exports before Vitest resolves them.
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --filter @hyperframes/core test:hyperframe-runtime-ci
+
+  studio-load-smoke:
+    name: "Studio: load smoke"
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      # Build workspace deps so the studio vite.config.ts (loaded by Node) can
+      # resolve @hyperframes/core and @hyperframes/studio-server via the "node"
+      # export condition (dist).
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --cwd packages/core build:hyperframes-runtime
+      - name: Start studio and check for runtime errors
+        run: |
+          # Start the studio Vite dev server (fast — no bundle step)
+          bun run --filter '@hyperframes/studio' dev -- --port 5199 &
+          SERVER_PID=$!
+
+          # Wait for the server to be ready (up to 20s)
+          for i in $(seq 1 40); do
+            if curl -sf http://localhost:5199/ >/dev/null 2>&1; then break; fi
+            sleep 0.5
+          done
+
+          if ! curl -sf http://localhost:5199/ >/dev/null 2>&1; then
+            echo "FAIL: studio dev server did not start"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          # Load the studio in headless Chrome with API mocking to trigger
+          # the full splash→main transition (catches hooks-after-early-return bugs)
+          node scripts/studio-runtime-smoke.mjs http://localhost:5199/#project=smoke-test
+
+          kill $SERVER_PID 2>/dev/null || true
+
+  studio-timeline-viewport:
+    name: "Studio: timeline viewport gate"
+    needs: [changes]
+    if: needs.changes.outputs.studio == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      # Same reason as studio-load-smoke: vite.config.ts is loaded by Node and
+      # resolves the workspace packages through their "node" export condition.
+      - run: bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+      - run: bun run --cwd packages/core build
+      - run: bun run --cwd packages/core build:hyperframes-runtime
+      - name: Install the fixture as a Studio project
+        # Studio resolves projects from packages/studio/data/projects, which is
+        # gitignored. The fixture composition is tracked under tests/e2e, so
+        # copy it into place rather than committing a project directory.
+        run: |
+          mkdir -p packages/studio/data/projects
+          cp -R packages/studio/tests/e2e/fixtures/timeline-virtualization \
+            packages/studio/data/projects/timeline-virtualization
+          cp -R packages/studio/tests/e2e/fixtures/studio-open \
+            packages/studio/data/projects/studio-open
+          cp -R packages/studio/tests/e2e/fixtures/fade-handles \
+            packages/studio/data/projects/fade-handles
+          cp -R packages/studio/tests/e2e/fixtures/timeline-trim-snap \
+            packages/studio/data/projects/timeline-trim-snap
+          cp -R packages/studio/tests/e2e/fixtures/inline-text-caret \
+            packages/studio/data/projects/inline-text-caret
+          cp -R packages/studio/tests/e2e/fixtures/undo-socket-pool \
+            packages/studio/data/projects/undo-socket-pool
+          cp -R packages/studio/tests/e2e/fixtures/aroll-backdrop \
+            packages/studio/data/projects/aroll-backdrop
+      - name: Build the base the viewport gate compares against
+        # The first parent of the checked-out commit, as in base-file.sh. Measured only when the head misses a budget.
+        run: |
+          set -euo pipefail
+          base="$(git cat-file -p HEAD | awk '/^parent /{print $2; exit}')"
+          git fetch --no-tags --depth=1 origin "$base"
+          GIT_LFS_SKIP_SMUDGE=1 git worktree add --detach /tmp/studio-base "$base"
+          cd /tmp/studio-base
+          bash scripts/ci/install-workspace-dependencies.sh
+          bun run --filter '@hyperframes/{parsers,lint,studio-server}' build
+          bun run --cwd packages/core build
+          bun run --cwd packages/core build:hyperframes-runtime
+          # The same projects as the head's server, so neither side serves more than the other.
+          cp -R "$GITHUB_WORKSPACE/packages/studio/data" packages/studio/data
+      - name: Read the base branch's work-count ceilings
+        # A ceiling may not disappear, or rise without a new reason, against the branch this PR merges into.
+        if: github.event_name == 'pull_request'
+        run: bash scripts/ci/base-file.sh packages/studio/tests/e2e/perf-ceilings.json /tmp/base-perf-ceilings.json
+      - name: Run both arms of the timeline viewport gate
+        run: |
+          set -euo pipefail
+
+          SERVER_PIDS=()
+          stop_servers() {
+            for pid in "${SERVER_PIDS[@]}"; do
+              kill "$pid" 2>/dev/null || true
+              wait "$pid" 2>/dev/null || true
+            done
+            SERVER_PIDS=()
+          }
+          wait_for_server() {
+            local port="$1"
+            for i in $(seq 1 60); do
+              if curl -sf "http://localhost:${port}/" >/dev/null 2>&1; then return 0; fi
+              sleep 1
+            done
+            echo "FAIL: studio dev server did not start on port ${port}"
+            return 1
+          }
+          trap stop_servers EXIT
+
+          # One arm at a time, so no other arm's Vite module graph competes with the measured browser.
+          # The base page loads only if the head misses a budget; production React matches shipped
+          # rendering, and the gate asserts that runtime before timing.
+          run_arm() {
+            local arm="$1" port="$2" virtualization="$3" count="$4" enabled="$5"
+            NODE_ENV=production VITE_STUDIO_TIMELINE_ROW_VIRTUALIZATION_ENABLED="$enabled" \
+              bun run --cwd /tmp/studio-base/packages/studio dev -- --port "$((port + 10))" --strictPort &
+            SERVER_PIDS+=($!)
+            NODE_ENV=production VITE_STUDIO_TIMELINE_ROW_VIRTUALIZATION_ENABLED="$enabled" \
+              bun run --cwd packages/studio dev -- --port "$port" --strictPort &
+            SERVER_PIDS+=($!)
+            local status=0
+            if wait_for_server "$((port + 10))" && wait_for_server "$port"; then
+              STUDIO_URL="http://localhost:${port}/#project/timeline-virtualization" \
+                BASE_STUDIO_URL="http://localhost:$((port + 10))/#project/timeline-virtualization" \
+                TIMELINE_ROW_VIRTUALIZATION="$virtualization" \
+                TIMELINE_ELEMENT_COUNT="$count" \
+                TIMELINE_TIER=ci \
+                node packages/studio/tests/e2e/timeline-virtualization.mjs \
+                | tee "/tmp/timeline-gate-${arm}.json" \
+                || status=$?
+            else
+              status=1
+            fi
+            stop_servers
+            return "$status"
+          }
+          DEFAULT_STATUS=0
+          run_arm default 5313 on 50000 1 || DEFAULT_STATUS=$?
+          DISABLED_STATUS=0
+          run_arm disabled 5314 off 1000 0 || DISABLED_STATUS=$?
+
+          {
+            echo "### Timeline viewport gate"
+            echo "- Default arm exit: ${DEFAULT_STATUS}"
+            echo "- Explicitly disabled arm exit: ${DISABLED_STATUS}"
+            for arm in default disabled; do
+              node -e '
+                const e = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+                const b = e.environment.appliedBudgets;
+                for (const a of e.attempts)
+                  console.log(`- ${process.argv[2]} attempt ${a.attempt}: interaction p95 ${a.interactionP95Ms.toFixed(1)}/${b.interactionP95Ms} ms, frame p95 ${a.frameIntervalP95Ms.toFixed(1)}/${b.frameIntervalP95Ms} ms, ${a.passingRuns}/${a.runs.length} runs, ${a.passed ? "pass" : "fail"}`);
+                const c = e.againstBase;
+                if (c)
+                  console.log(`- ${process.argv[2]} against base on this runner: ${c.summary}`);
+              ' "/tmp/timeline-gate-${arm}.json" "$arm" || echo "- ${arm}: no evidence"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if (( DEFAULT_STATUS != 0 || DISABLED_STATUS != 0 )); then
+            echo "FAIL: default=${DEFAULT_STATUS}, disabled=${DISABLED_STATUS}"
+            exit 1
+          fi
+      - name: Count the work of opening a film in Studio
+        # Counts, not ms: thumbnail renders, page loads and requests do not move
+        # with runner load, so perf-ceilings.json can hold them exactly.
+        if: success() || failure()
+        run: |
+          set -euo pipefail
+          NODE_ENV=production bun run --cwd packages/studio dev -- --port 5315 --strictPort &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -sf "http://localhost:5315/" >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          if ! curl -sf "http://localhost:5315/" >/dev/null 2>&1; then
+            echo "FAIL: studio dev server did not start on port 5315"
+            exit 1
+          fi
+          STUDIO_URL="http://localhost:5315/#project/studio-open" \
+            STUDIO_PROJECT_DIR="$PWD/packages/studio/data/projects/studio-open" \
+            node packages/studio/tests/e2e/studio-open-counts.mjs \
+            | tee /tmp/studio-open-counts.json
+          node packages/studio/tests/e2e/perf-ratchet.mjs check \
+            packages/studio/tests/e2e/perf-ceilings.json studio-open /tmp/studio-open-counts.json \
+            /tmp/base-perf-ceilings.json
+      - name: Check fade handles, render selects, thumbnail connection release, trim snapping and a script-hidden backdrop
+        if: success() || failure()
+        run: |
+          set -euo pipefail
+          NODE_ENV=production bun run --cwd packages/studio dev -- --port 5316 --strictPort &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -sf "http://localhost:5316/" >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          if ! curl -sf "http://localhost:5316/" >/dev/null 2>&1; then
+            echo "FAIL: studio dev server did not start on port 5316"
+            exit 1
+          fi
+          # All checks run even when an earlier one fails.
+          rc=0
+          STUDIO_URL="http://localhost:5316/#project/fade-handles" \
+            node packages/studio/tests/e2e/fade-handles.mjs || rc=1
+          STUDIO_URL="http://localhost:5316/#project/fade-handles?tab=renders" \
+            node packages/studio/tests/e2e/render-selects.mjs || rc=1
+          STUDIO_URL="http://localhost:5316/" \
+            node packages/studio/tests/e2e/thumbnail-save.mjs || rc=1
+          STUDIO_URL="http://localhost:5316/#project/timeline-trim-snap" \
+            node packages/studio/tests/e2e/timeline-trim-snap.mjs || rc=1
+          rm -rf packages/studio/data/projects/timeline-trim-snap
+          cp -R packages/studio/tests/e2e/fixtures/timeline-trim-snap \
+            packages/studio/data/projects/timeline-trim-snap
+          STUDIO_URL="http://localhost:5316/#project/timeline-trim-snap" \
+            node packages/studio/tests/e2e/timeline-snap-release.mjs || rc=1
+          STUDIO_URL="http://localhost:5316/#project/aroll-backdrop" \
+            node packages/studio/tests/e2e/aroll-backdrop.mjs || rc=1
+          exit "$rc"
+      - name: Measure the caret of a text edited in place
+        if: success() || failure()
+        run: |
+          set -euo pipefail
+          NODE_ENV=production bun run --cwd packages/studio dev -- --port 5317 --strictPort &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -sf "http://localhost:5317/" >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          if ! curl -sf "http://localhost:5317/" >/dev/null 2>&1; then
+            echo "FAIL: studio dev server did not start on port 5317"
+            exit 1
+          fi
+          STUDIO_URL="http://localhost:5317/#project/inline-text-caret" \
+            EVIDENCE_DIR=/tmp/inline-text-caret \
+            node packages/studio/tests/e2e/inline-text-caret.mjs
+      - name: Install ffmpeg for the paused-video fixture
+        if: success() || failure()
+        uses: ./.github/actions/install-ffmpeg-linux
+      - name: Undo while paused videos hold the preview's sockets
+        # Counts the undo's wait for a socket, not its total time: unpinned it is 0 ms.
+        if: success() || failure()
+        run: |
+          set -euo pipefail
+          NODE_ENV=production bun run --cwd packages/studio dev -- --port 5318 --strictPort &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -sf "http://localhost:5318/" >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          if ! curl -sf "http://localhost:5318/" >/dev/null 2>&1; then
+            echo "FAIL: studio dev server did not start on port 5318"
+            exit 1
+          fi
+          STUDIO_URL="http://localhost:5318/#project/undo-socket-pool" \
+            STUDIO_PROJECT_DIR="$PWD/packages/studio/data/projects/undo-socket-pool" \
+            node packages/studio/tests/e2e/undo-socket-pool.mjs | tee /tmp/undo-socket-pool.json
+      - name: Upload gate evidence
+        # The gate's whole output is machine-readable evidence, and a red run is
+        # exactly when someone needs to read it. Keep it on failure too.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: timeline-viewport-gate-evidence
+          path: |
+            /tmp/timeline-gate-*.json
+            /tmp/studio-open-counts.json
+            /tmp/inline-text-caret/*.png
+            /tmp/undo-socket-pool.json
+          if-no-files-found: error
+
+  # Manual editing accuracy in the built Studio, gated against the base branch's baseline.json. A pull request
+  # runs the `pr` slice in 5 shards; the merge queue runs the full grid in 20, so nothing reaches main unmeasured.
+  # The gate job below repeats both shard counts.
+  studio-edit-accuracy:
+    name: "Studio: edit accuracy (${{ matrix.shard }}/${{ strategy.job-total }})"
+    needs: [changes, build]
+    if: needs.changes.outputs.edit_accuracy == 'true'
+    runs-on: ubuntu-latest
+    # Healthy shards take 6-9 min; 25 leaves a cancelled shard's fresh re-run inside the queue's 60 min check wait.
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(github.event_name == 'merge_group' && '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]' || '[1, 2, 3, 4, 5]') }}
+    env:
+      EDIT_ACCURACY_GRID: ${{ github.event_name == 'merge_group' && 'full' || 'pr' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      # The bench imports producer and engine source, which need core's generated runtime files.
+      - run: bun run --cwd packages/core build
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: edit-accuracy-cli
+          path: packages/cli/dist
+      # Studio and the producer both run in the engine's pinned headless shell.
+      - run: node packages/cli/dist/cli.js browser ensure
+      - name: Read the base branch's edit accuracy baseline
+        run: |
+          bash scripts/ci/base-file.sh packages/studio/tests/e2e/edit-accuracy/baseline.json /tmp/base-edit-accuracy.json
+          [ -f /tmp/base-edit-accuracy.json ] || echo '{"cases":{}}' > /tmp/base-edit-accuracy.json
+      - name: Run this shard, then re-run twice each case whose verdict differs from the base branch
+        run: bash scripts/ci/edit-accuracy-shard.sh "${{ matrix.shard }}/${{ strategy.job-total }}"
+      # A slow runner stops the bench (slow-runner.json) or runs into the timeout; either gets one fresh re-run.
+      - name: Mark a slow or cancelled shard for a re-run
+        if: always()
+        run: |
+          mkdir -p /tmp/edit-accuracy
+          if [ "${{ job.status }}" = cancelled ] || [ -n "$(find /tmp/edit-accuracy -name slow-runner.json)" ]; then
+            touch /tmp/edit-accuracy/retry
+          fi
+      - name: Upload shard evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: edit-accuracy-shard-${{ matrix.shard }}
+          path: /tmp/edit-accuracy
+          if-no-files-found: error
+
+  studio-edit-accuracy-retry-plan:
+    name: "Studio: edit accuracy retry plan"
+    needs: [changes, studio-edit-accuracy]
+    if: ${{ !cancelled() && needs.changes.outputs.edit_accuracy == 'true' && needs.studio-edit-accuracy.result != 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: edit-accuracy-shard-*
+          path: /tmp/edit-accuracy-shards
+      - name: List the shards marked for a re-run
+        id: plan
+        run: |
+          shards=$(find /tmp/edit-accuracy-shards -path '*/edit-accuracy-shard-*/retry' |
+            sed -E 's#.*/edit-accuracy-shard-([0-9]+)/retry$#\1#' | sort -n | paste -sd, -)
+          echo "shards=[${shards}]" >> "$GITHUB_OUTPUT"
+
+  # Each marked shard runs once more on a fresh runner and replaces its evidence before the gate reads it.
+  studio-edit-accuracy-retry:
+    name: "Studio: edit accuracy retry (${{ matrix.shard }})"
+    needs: [changes, build, studio-edit-accuracy-retry-plan]
+    if: ${{ !cancelled() && needs.studio-edit-accuracy-retry-plan.outputs.shards != '[]' && needs.studio-edit-accuracy-retry-plan.outputs.shards != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.studio-edit-accuracy-retry-plan.outputs.shards) }}
+    env:
+      EDIT_ACCURACY_GRID: ${{ github.event_name == 'merge_group' && 'full' || 'pr' }}
+      SHARDS: ${{ github.event_name == 'merge_group' && 20 || 5 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run --cwd packages/core build
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: edit-accuracy-cli
+          path: packages/cli/dist
+      - run: node packages/cli/dist/cli.js browser ensure
+      - name: Read the base branch's edit accuracy baseline
+        run: |
+          bash scripts/ci/base-file.sh packages/studio/tests/e2e/edit-accuracy/baseline.json /tmp/base-edit-accuracy.json
+          [ -f /tmp/base-edit-accuracy.json ] || echo '{"cases":{}}' > /tmp/base-edit-accuracy.json
+      - name: Run the shard again
+        run: bash scripts/ci/edit-accuracy-shard.sh "${{ matrix.shard }}/${SHARDS}"
+      - name: Replace the shard's evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: edit-accuracy-shard-${{ matrix.shard }}
+          path: /tmp/edit-accuracy
+          if-no-files-found: error
+          overwrite: true
+
+  studio-edit-accuracy-gate:
+    name: "Studio: edit accuracy gate"
+    needs: [changes, studio-edit-accuracy, studio-edit-accuracy-retry]
+    if: ${{ !cancelled() && needs.changes.outputs.edit_accuracy == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Read the base branch's edit accuracy baseline
+        run: |
+          bash scripts/ci/base-file.sh packages/studio/tests/e2e/edit-accuracy/baseline.json /tmp/base-edit-accuracy.json
+          [ -f /tmp/base-edit-accuracy.json ] || echo '{"cases":{}}' > /tmp/base-edit-accuracy.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: edit-accuracy-shard-*
+          path: /tmp/edit-accuracy-shards
+      - name: Compare every run with the base branch
+        id: gate
+        # Smoothness and newly passing cases are reported, not gated; a case fails only if it fails 2 of its 3 runs.
+        env:
+          SHARDS: ${{ github.event_name == 'merge_group' && 20 || 5 }}
+        run: |
+          set +e
+          mapfile -t RESULTS < <(find /tmp/edit-accuracy-shards -name results.json | sort)
+          node packages/studio/tests/e2e/edit-accuracy/ratchet.mjs gate --shards "$SHARDS" /tmp/base-edit-accuracy.json \
+            packages/studio/tests/e2e/edit-accuracy/baseline.json /tmp/edit-accuracy-gate "${RESULTS[@]}"
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          cat /tmp/edit-accuracy-gate/comment.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Post sticky comment
+        # Fork PRs get a read-only token; the gate below still fires. The merge queue has no PR to comment on.
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
+        with:
+          header: edit-accuracy
+          path: /tmp/edit-accuracy-gate/comment.md
+      - name: Upload the gate report and a baseline.json to bank
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: edit-accuracy-gate
+          path: /tmp/edit-accuracy-gate
+      - name: Fail if the gate failed
+        if: steps.gate.outputs.exit_code != '0'
+        run: |
+          echo "::error::Edit accuracy fell against the base branch; see the PR comment."
+          exit 1
+
+  smoke-global-install:
+    name: "Smoke: global install"
+    needs: [changes, build]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - run: bash scripts/ci/install-workspace-dependencies.sh
+      - run: bun run build
+
+      # Pack the CLI as a tarball (simulates what `npm publish` produces)
+      - name: Pack CLI tarball
+        run: cd packages/cli && npm pack
+
+      # Install globally using --prefix to avoid sudo
+      - name: Install globally via npm
+        run: npm install -g --prefix /tmp/hf-smoke ./packages/cli/hyperframes-cli-*.tgz
+
+      # Scaffold a blank project
+      - name: Init blank project
+        run: |
+          export PATH="/tmp/hf-smoke/bin:$PATH"
+          mkdir /tmp/hf-project && cd /tmp/hf-project
+          hyperframes init test-project --example blank
+
+      # Start preview, probe the runtime endpoint, assert no esbuild errors
+      - name: Smoke-test preview server
+        run: |
+          export PATH="/tmp/hf-smoke/bin:$PATH"
+          cd /tmp/hf-project/test-project
+
+          # Start the preview server in the background; capture stderr
+          CI=true hyperframes preview --port 3099 2>/tmp/hf-stderr.log &
+          SERVER_PID=$!
+
+          # Wait for the server to be ready (up to 15 s)
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3099/ >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.5
+          done
+
+          # Probe the runtime JS endpoint
+          BODY=$(curl -sf http://localhost:3099/api/runtime.js | head -c 200 || true)
+          if [ -z "$BODY" ]; then
+            echo "FAIL: /api/runtime.js returned empty response"
+            kill $SERVER_PID 2>/dev/null || true
+            cat /tmp/hf-stderr.log
+            exit 1
+          fi
+
+          kill $SERVER_PID 2>/dev/null || true
+          wait $SERVER_PID 2>/dev/null || true
+
+          # Assert stderr does not contain esbuild / runtime load errors
+          if grep -qE '✘ \[ERROR\]|Failed to load runtime' /tmp/hf-stderr.log; then
+            echo "FAIL: preview emitted runtime errors:"
+            cat /tmp/hf-stderr.log
+            exit 1
+          fi
+
+          echo "PASS: global install smoke test succeeded"
+
+  cli-smoke-required:
+    name: "CLI smoke (required)"
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install FFmpeg
+        uses: ./.github/actions/install-ffmpeg-linux
+      - uses: ./.github/actions/prepare-ffmpeg-bin
+      - name: Install dependencies
+        run: bash scripts/ci/install-workspace-dependencies.sh
+      - name: Build monorepo
+        run: bun run build
+
+      - name: Create smoke input video
+        run: |
+          set -euo pipefail
+          ffmpeg -hide_banner -loglevel error \
+            -f lavfi -i testsrc2=size=640x360:rate=30 \
+            -f lavfi -i sine=frequency=880:sample_rate=48000 \
+            -t 3 \
+            -c:v libx264 \
+            -pix_fmt yuv420p \
+            -c:a aac \
+            -shortest \
+            -y /tmp/hf-cli-input.mp4
+          test -s /tmp/hf-cli-input.mp4
+
+      - name: Smoke-test CLI from monorepo source
+        # init's --skip-skills flag is neutered (see init.ts); opt out of the
+        # GitHub skills check via this env so the smoke test stays offline/fast.
+        env:
+          HYPERFRAMES_SKIP_SKILLS: "1"
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/hf-cli-inside
+
+          bun run --filter @hyperframes/cli dev -- init /tmp/hf-cli-inside \
+            --example warm-grain \
+            --video /tmp/hf-cli-input.mp4 \
+            --skip-transcribe \
+            --non-interactive \
+            --skip-skills
+
+          bun run --filter @hyperframes/cli dev -- lint /tmp/hf-cli-inside
+          bun run --filter @hyperframes/cli dev -- validate /tmp/hf-cli-inside --timeout 3000
+          bun run --filter @hyperframes/cli dev -- render /tmp/hf-cli-inside \
+            --quality standard \
+            --workers auto \
+            --strict \
+            --output /tmp/hf-cli-inside/renders/inside.mp4 2>&1 | tee /tmp/hf-cli-render.log
+
+          test -s /tmp/hf-cli-inside/renders/inside.mp4
+
+      # Belongs in this job because it needs the BUILT CLI: `shouldTrack()`
+      # short-circuits whenever `isDevMode()` is true, which it is for any `.ts`
+      # entry, so under vitest a real event and no event look identical. Sends
+      # nothing to PostHog — the script wraps fetch and captures the batch.
+      - name: Smoke-test `add` telemetry end to end
+        run: node scripts/ci/cli-telemetry-e2e.mjs
+
+      - name: Assert page.goto completes under 5s budget
+        run: |
+          set -euo pipefail
+          # Extract the longest page.goto time from render logs.
+          # Format: [initSession:MODE] page.goto complete (NNNms)
+          MAX_MS=$(grep -oP 'page\.goto complete \(\K[0-9]+' /tmp/hf-cli-render.log | sort -n | tail -1)
+          if [ -z "$MAX_MS" ]; then
+            echo "::error::No page.goto timing found in render logs — log format may have changed. Update the grep pattern."
+            exit 1
+          fi
+          echo "Slowest page.goto: ${MAX_MS}ms (budget: 5000ms)"
+          if [ "$MAX_MS" -gt 5000 ]; then
+            echo "::error::page.goto took ${MAX_MS}ms — exceeds 5s budget. Possible Proxy/stub regression."
+            exit 1
+          fi
+
+      - name: Pack CLI tarball
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hf-cli-pack
+          cd packages/cli
+          PACKED_TARBALL="$(npm pack --pack-destination /tmp/hf-cli-pack | tail -n 1)"
+          test -n "$PACKED_TARBALL"
+          test -f "/tmp/hf-cli-pack/$PACKED_TARBALL"
+          echo "HF_CLI_TARBALL=/tmp/hf-cli-pack/$PACKED_TARBALL" >> "$GITHUB_ENV"
+
+      - name: Install packed CLI outside monorepo
+        run: |
+          set -euo pipefail
+          npm install -g --prefix /tmp/hf-cli-global "$HF_CLI_TARBALL"
+
+      - name: Smoke-test packed CLI outside monorepo
+        # init's --skip-skills flag is neutered (see init.ts); opt out of the
+        # GitHub skills check via this env so the smoke test stays offline/fast.
+        env:
+          HYPERFRAMES_SKIP_SKILLS: "1"
+        run: |
+          set -euo pipefail
+          export PATH="/tmp/hf-cli-global/bin:$PATH"
+          rm -rf /tmp/hf-cli-outside
+
+          hyperframes init /tmp/hf-cli-outside \
+            --example warm-grain \
+            --video /tmp/hf-cli-input.mp4 \
+            --skip-transcribe \
+            --non-interactive \
+            --skip-skills
+
+          hyperframes lint /tmp/hf-cli-outside
+          hyperframes validate /tmp/hf-cli-outside --timeout 3000
+          hyperframes render /tmp/hf-cli-outside \
+            --quality standard \
+            --workers auto \
+            --strict \
+            --output /tmp/hf-cli-outside/renders/outside.mp4
+
+          test -s /tmp/hf-cli-outside/renders/outside.mp4
+
+  filesize:
+    name: File size check
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Check file sizes (max 600 lines)
+        # Scoped to files THIS PR changed under packages/studio. Walking the
+        # whole tree blamed every unrelated PR for pre-existing offenders.
+        # Falls back to a full scan on push events (no base ref available)
+        # so the rule still guards main.
+        run: |
+          set -e
+          if [ -n "${{ github.base_ref }}" ]; then
+            mapfile -t files < <(
+              git diff --name-only --diff-filter=ACMR \
+                "origin/${{ github.base_ref }}...HEAD" -- \
+                'packages/studio/**/*.ts' 'packages/studio/**/*.tsx' \
+                | grep -vE '\.(test|spec)\.(ts|tsx)$|\.generated\.' || true
+            )
+          else
+            mapfile -t files < <(
+              find packages/studio -path '*/node_modules' -prune -o \
+                \( -name '*.ts' -o -name '*.tsx' \) -print \
+                | grep -vE '\.(test|spec)\.(ts|tsx)$|\.generated\.'
+            )
+          fi
+          EXIT=0
+          for f in "${files[@]}"; do
+            [ -z "$f" ] && continue
+            [ -f "$f" ] || continue  # skip files deleted in this PR
+            lines=$(wc -l < "$f")
+            if [ "$lines" -gt 600 ]; then
+              echo "::error file=$f::$f has $lines lines (max 600)"
+              EXIT=1
+            fi
+          done
+          exit $EXIT
+
+  semantic-pr-title:
+    name: Semantic PR title
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PR_TITLE_TYPES: |
+        feat
+        fix
+        docs
+        style
+        refactor
+        perf
+        test
+        build
+        ci
+        chore
+        revert
+    steps:
+      - if: github.event_name == 'pull_request'
+        uses: amannn/action-semantic-pull-request@e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: ${{ env.PR_TITLE_TYPES }}
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - if: github.event_name == 'workflow_dispatch'
+        id: pr
+        run: node scripts/ci/resolve-workflow-pr.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: amannn/action-semantic-pull-request
+          ref: e32d7e603df1aa1ba07e981f2a23455dee596825 # v5
+          path: .semantic-pr-action
+          persist-credentials: false
+      - if: github.event_name == 'workflow_dispatch'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - if: github.event_name == 'workflow_dispatch'
+        name: Validate PR title
+        run: GITHUB_EVENT_PATH="$PR_EVENT_PATH" node .semantic-pr-action/dist/index.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_EVENT_PATH: ${{ steps.pr.outputs.event_path }}
+          INPUT_GITHUBBASEURL: ${{ github.api_url }}
+          INPUT_TYPES: ${{ env.PR_TITLE_TYPES }}

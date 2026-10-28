@@ -1,0 +1,23 @@
+{
+  "name": "@hypit/text",
+  "version": "0.0.0-dev",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "dependencies": {
+    "@hypit/producer": "workspace:*",
+    "@hypit/kernel": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/recipe": "workspace:*",
+    "@hypit/source": "workspace:*",
+    "@hypit/admission": "workspace:*"
+  }
+}

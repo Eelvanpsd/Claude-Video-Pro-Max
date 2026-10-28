@@ -1,0 +1,305 @@
+# @hyperframes/player
+
+Embeddable web component for playing HyperFrames compositions. Zero dependencies, works with any framework.
+
+## Install
+
+```bash
+npm install @hyperframes/player
+```
+
+Or load directly via CDN:
+
+```html
+<script type="module" src="https://cdn.jsdelivr.net/npm/@hyperframes/player"></script>
+```
+
+If you need a classic `<script>` tag instead of ESM, use the explicit global build:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@hyperframes/player/dist/hyperframes-player.global.js"></script>
+```
+
+## Usage
+
+```html
+<hyperframes-player src="./my-composition/index.html" controls></hyperframes-player>
+```
+
+The player loads the composition in a sandboxed iframe, auto-detects its dimensions and duration, and scales it responsively to fit the container.
+
+### With a framework
+
+```typescript
+import "@hyperframes/player";
+
+// The custom element is now registered — use it in your markup
+// React: <hyperframes-player src="..." controls />
+// Vue:   <hyperframes-player :src="url" controls />
+```
+
+### Video files
+
+Set `type` to a video type and the player plays `src` in a `<video playsinline>` instead of loading it as a composition. The same API and events apply: `play()`, `pause()`, `seek()`, `currentTime`, `duration`, `ready`, `timeupdate`, `play`, `pause`, `ended`, `durationchange` and `resize`, with the video's own size as `compositionWidth`/`compositionHeight`. A video that fails to load fires `error` at once with `{ message, code }`, where `code` is the `MediaError` code. A `play()` the browser blocks (for example, unmuted autoplay) fires `playbackerror` with `{ source: "video" }` and leaves the player paused. `poster`, `controls`, `loop`, `muted`, `volume`, `playback-rate` and `autoplay` work as they do for a composition. `scenes`, `setRuntimeData()`, `setColorGrading()`, `iframeElement` and `stopMedia()` are composition-only: a video has no scenes or runtime, its iframe stays blank, and `stopMedia()` does not stop the video. `srcdoc` wins over a video `src`, as it does in an iframe.
+
+```html
+<hyperframes-player
+  type="video/mp4"
+  src="./render.mp4"
+  poster="./poster.jpg"
+  controls
+></hyperframes-player>
+```
+
+### Poster image
+
+Show a static image before playback starts:
+
+```html
+<hyperframes-player
+  src="./composition/index.html"
+  poster="./thumbnail.jpg"
+  controls
+></hyperframes-player>
+```
+
+## Attributes
+
+| Attribute               | Type                            | Default       | Description                                                                 |
+| ----------------------- | ------------------------------- | ------------- | --------------------------------------------------------------------------- |
+| `src`                   | string                          | —             | URL to the composition HTML file, or to a video file with `type`            |
+| `type`                  | string                          | —             | A `video/...` type (e.g. `video/mp4`) plays `src` as a video file           |
+| `audio-src`             | string                          | —             | Audio URL for parent-frame playback (mobile)                                |
+| `width`                 | number                          | 1920          | Composition width in pixels (aspect ratio)                                  |
+| `height`                | number                          | 1080          | Composition height in pixels (aspect ratio)                                 |
+| `controls`              | boolean                         | false         | Show play/pause, scrubber, and time display                                 |
+| `muted`                 | boolean                         | false         | Mute audio playback                                                         |
+| `audio-locked`          | boolean                         | false         | Force-mute and hide the volume controls so the viewer cannot turn sound on  |
+| `poster`                | string                          | —             | Image URL shown before playback starts                                      |
+| `playback-rate`         | number                          | 1             | Speed multiplier (0.5 = half, 2 = double)                                   |
+| `autoplay`              | boolean                         | false         | Start playing when ready                                                    |
+| `loop`                  | boolean                         | false         | Restart when the composition ends                                           |
+| `shader-capture-scale`  | number                          | —             | Shader transition snapshot scale forwarded to browser previews (`0.25`-`1`) |
+| `shader-loading`        | `composition \| player \| none` | `composition` | Controls shader transition prep loading UI ownership                        |
+| `assets-loading-ui`     | `player \| none`                | `player`      | `none` never shows the loading-assets card; asset events still fire         |
+| `low-power-idle`        | boolean                         | false         | While paused, check in once a second, not every 80 ms (many-player pages)   |
+| `disable-click-to-play` | boolean                         | false         | A click on the player no longer plays or pauses (host overlays own clicks)  |
+| `no-load-timeout`       | boolean                         | false         | Slow loads never fail at 8 s; the page owns the deadline. Errors still fail |
+| `range-start`           | number                          | —             | Film second where playback starts, loops back to and parks when paused      |
+| `range-end`             | number                          | —             | Film second the range ends before: it stops or loops on the frame before it |
+
+`range-start` and `range-end` play the moment [start, end) of the film. The player parks on `range-start` at `ready`, and again when a paused playhead falls outside a new range; `play()` from outside the range starts there. At the end it holds the last frame before `range-end` and fires `ended`, or wraps to `range-start` with `loop`. A current runtime stops on that frame itself; video and `__timelines` players stop on their next clock tick and step back to it; an older runtime stops when the player sees its time pass the end. `currentTime` and `duration` stay in film time. A range past the film is cut to its end and an empty or negative one is ignored; both fire `rangeclamped`.
+
+### Shader transition previews
+
+When a composition uses `@hyperframes/shader-transitions`, the player can own preview-only shader capture settings:
+
+```html
+<hyperframes-player
+  src="./composition/index.html"
+  shader-capture-scale="1"
+  shader-loading="player"
+  controls
+></hyperframes-player>
+```
+
+`shader-loading="player"` shows the player-owned transition-prep overlay from shader progress messages. `composition` leaves direct composition fallback behavior alone, and `none` suppresses the loader.
+
+### Loading-assets card
+
+While images, video or fonts are still loading after `ready`, the player shows a loading card over the frame and sets the `assets-loading` attribute on itself. A host that draws its own loading state can turn the card off with `assets-loading-ui="none"` (or `player.assetsLoadingUi = "none"`). The `assets-loading` attribute and the `assetsready` and `painted` events behave the same either way, so the host still knows when the frame is ready.
+
+### Audio lock (host-mandated silent playback)
+
+`audio-locked` forces `muted` on and hides the volume controls, with no UI path for the viewer to turn sound back on. Use it when embedding in a chat host (Claude.ai, ChatGPT, etc.) where audio must stay off regardless of viewer intent. Setting `muted` directly is _not_ enough — viewers can flip it back via the controls bar.
+
+Removing `audio-locked` only unhides the controls; it does **not** auto-unmute. Callers manage `muted` explicitly after unlocking.
+
+**Host-environment fallback.** Some host renderers — notably the Claude desktop Electron client — strip unknown custom-element attributes before they reach the DOM, defeating the attribute. As a safety net, the player also self-imposes the lock when it detects such an environment via `navigator.userAgent`, so audio stays muted even if the attribute never arrives. The public `audioLocked` property still reflects only the attribute, so external consumers (e.g. host widgets that mirror state) are not affected by the fallback.
+
+### Mobile audio
+
+Mobile browsers block `audio.play()` inside iframes when the user gesture happened in the parent frame (the [User Activation spec](https://html.spec.whatwg.org/multipage/interaction.html#tracking-user-activation) does not propagate activation across frame boundaries via `postMessage`).
+
+The player handles this automatically for same-origin iframes (the default — `sandbox` includes `allow-same-origin`):
+
+1. When the composition is ready, the player extracts all timed media (`audio[data-start]`, `video[data-start]`) from the iframe DOM and creates parent-frame copies.
+2. The iframe originals are disabled (`src` and `data-start` removed) so the runtime doesn't try to play them.
+3. When `play()` is called (from a user gesture), parent media `.play()` runs synchronously in the gesture call stack, satisfying mobile autoplay policy.
+4. Both parent media and the GSAP timeline start simultaneously and free-run — no active sync needed since both are real-time systems.
+
+No changes are required by consumers — this works out of the box.
+
+The optional `audio-src` attribute can be used to start preloading a primary audio track before the iframe loads (useful on slow connections), but is not required for mobile playback.
+
+## JavaScript API
+
+```js
+const player = document.querySelector("hyperframes-player");
+
+// Playback
+player.play();
+player.pause();
+player.seek(2.5); // jump to 2.5 seconds
+
+// Properties
+player.currentTime; // number (read/write)
+player.duration; // number (read-only)
+player.paused; // boolean (read-only)
+player.ready; // boolean (read-only)
+player.compositionWidth; // number (read-only), the composition's width
+player.compositionHeight; // number (read-only), the composition's height
+player.disableClickToPlay; // boolean (read/write)
+player.playbackRate; // number (read/write)
+player.muted; // boolean (read/write)
+player.audioLocked; // boolean (read/write) — force-mute + hide volume controls
+player.loop; // boolean (read/write)
+player.rangeStart; // number | null (read/write, mirrors range-start)
+player.rangeEnd; // number | null (read/write, mirrors range-end)
+player.shaderCaptureScale; // number (read/write)
+player.shaderLoading; // "composition" | "player" | "none" (read/write)
+
+// Inner iframe access (for advanced consumers — see "Advanced: iframe access" below)
+player.iframeElement; // HTMLIFrameElement (read-only)
+```
+
+## Runtime data delivery
+
+`setRuntimeData(channel, payload)` clones and retains the payload, then delivers it after the
+composition runtime is ready. Invalid channels and non-cloneable payloads throw synchronously.
+Failures after the call returns are reported with `runtimedataerror`; successful application is
+reported with `runtimedataapplied`. Both events include `{ channel, requestId }`, and errors also
+include `message`. Listen for both outcomes when delivery matters:
+
+```js
+player.addEventListener("runtimedataapplied", ({ detail }) => {
+  console.log("applied", detail.channel, detail.requestId);
+});
+player.addEventListener("runtimedataerror", ({ detail }) => {
+  console.error("not applied", detail.channel, detail.requestId, detail.message);
+});
+player.setRuntimeData("captions", captionData);
+```
+
+Only the latest in-flight update for a channel can emit a completion. A missing runtime response,
+iframe teardown, or bridge delivery failure emits `runtimedataerror` instead of remaining pending
+indefinitely.
+
+## Advanced: iframe access
+
+The composition runs inside a sandboxed `<iframe>` in the player's Shadow DOM. The default sandbox includes `allow-same-origin` for editor, recorder, and custom-timeline integrations that inspect the composition DOM. That is a trusted-content mode, not an isolation boundary: same-origin composition code can reach the embedding page.
+
+For read-only or message-bridge integrations, set `sandbox-origin="opaque"`. Any non-null value is
+treated as opaque so a typo cannot weaken isolation. Changing the attribute reloads the active
+composition because browser sandbox changes take effect only on navigation. Opaque mode removes
+`allow-same-origin` while retaining scripts, and prevents the composition from reading unrelated
+parent DOM. Direct `contentDocument`, `__player`, and `__timelines` access is intentionally
+unavailable in that mode.
+
+If you are building a trusted editor integration that needs direct access, use the `iframeElement` getter:
+
+```js
+const player = document.querySelector("hyperframes-player");
+const iframe = player.iframeElement;
+
+// Now you can reach into the composition's DOM and runtime
+iframe.contentDocument.querySelectorAll("[data-composition-id]");
+iframe.contentWindow.__timelines;
+```
+
+This is the canonical way to bridge the player into tools like [`@hyperframes/studio`](../studio). The studio exports a `resolveIframe` helper that works with both iframe refs and web-component refs:
+
+```ts
+import { useTimelinePlayer, resolveIframe } from "@hyperframes/studio";
+
+const { iframeRef } = useTimelinePlayer();
+const player = document.createElement("hyperframes-player");
+player.setAttribute("src", src);
+container.appendChild(player);
+
+// Forward the inner iframe so useTimelinePlayer can drive play/pause/seek.
+iframeRef.current = resolveIframe(player);
+```
+
+### React: declarative ref pattern
+
+If you prefer JSX over imperative element creation, attach a ref directly to the web component and resolve the iframe inside an effect:
+
+```tsx
+import "@hyperframes/player";
+import type { HyperframesPlayer } from "@hyperframes/player";
+import { useTimelinePlayer, resolveIframe } from "@hyperframes/studio";
+
+function StudioPreview({ src }: { src: string }) {
+  const { iframeRef, onIframeLoad } = useTimelinePlayer();
+  const playerRef = useRef<HyperframesPlayer>(null);
+
+  useEffect(() => {
+    iframeRef.current = resolveIframe(playerRef.current);
+  });
+
+  return <hyperframes-player ref={playerRef} src={src} onLoad={onIframeLoad} />;
+}
+```
+
+> **Heads up — common gotcha**
+>
+> If you pass the `<hyperframes-player>` element itself (not `iframeElement`) into a hook that expects an `<iframe>`, every `.contentWindow` / `.contentDocument` access returns `null` because the iframe lives inside the player's Shadow DOM. Always extract `iframeElement` first, or use `resolveIframe` from `@hyperframes/studio` which handles both iframe and web-component hosts transparently.
+
+## Events
+
+| Event                   | Detail                                              | Fired when                                 |
+| ----------------------- | --------------------------------------------------- | ------------------------------------------ |
+| `ready`                 | `{ duration, compositionWidth, compositionHeight }` | Composition loaded and duration determined |
+| `durationchange`        | `{ duration }`                                      | The duration changed after `ready`         |
+| `resize`                | `{ compositionWidth, compositionHeight }`           | The composition's size changed             |
+| `play`                  | —                                                   | Playback started                           |
+| `pause`                 | —                                                   | Playback paused                            |
+| `timeupdate`            | `{ currentTime }`                                   | Playback position changed (~10 fps)        |
+| `ended`                 | —                                                   | Reached the end (when not looping)         |
+| `rangeclamped`          | `{ rangeStart, rangeEnd, duration }`                | The range was cut to the film, or ignored  |
+| `error`                 | `{ message }` (video mode: `{ message, code }`)     | Composition or video failed to load        |
+| `playbackerror`         | `{ source, error }`                                 | The browser blocked playback               |
+| `shadertransitionstate` | `{ compositionId, state }`                          | Shader transition cache/capture progress   |
+
+```js
+player.addEventListener("ready", (e) => {
+  console.log(`Duration: ${e.detail.duration}s`);
+});
+
+player.addEventListener("ended", () => {
+  console.log("Done!");
+});
+```
+
+## Sizing
+
+The player fills its container and scales the composition to fit while preserving aspect ratio. Set a size on the element or its parent:
+
+```css
+hyperframes-player {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16 / 9;
+}
+```
+
+The `width` and `height` attributes define the composition's native resolution for aspect ratio calculation — they don't set the player's display size.
+
+## How it works
+
+The player renders compositions in a sandboxed `<iframe>` inside a Shadow DOM. It communicates with the HyperFrames runtime via `postMessage`. If the composition has GSAP timelines (`window.__timelines`) but no runtime, the player auto-injects it from CDN.
+
+## Distribution
+
+| Format | File                           | Use case                       |
+| ------ | ------------------------------ | ------------------------------ |
+| ESM    | `hyperframes-player.js`        | Bundlers (Vite, webpack, etc.) |
+| CJS    | `hyperframes-player.cjs`       | Node.js / require()            |
+| IIFE   | `hyperframes-player.global.js` | `<script>` tag, CDN            |
+
+All formats are minified with source maps. TypeScript definitions included.
+
+## License
+
+MIT

@@ -1,0 +1,46 @@
+[
+ {
+  "id": "L1",
+  "text": "December seventeenth, nineteen oh three.",
+  "voice": "bm_george",
+  "speed": 0.95,
+  "asr": "December 17th, 1903"
+ },
+ {
+  "id": "L2",
+  "text": "Orville wired home: success, four flights.",
+  "voice": "bm_george",
+  "speed": 0.95,
+  "asr": "Orville wired home. Success for flights."
+ },
+ {
+  "id": "L3",
+  "text": "The longest, fifty-seven seconds.",
+  "voice": "bm_george",
+  "speed": 0.92
+ },
+ {
+  "id": "L4",
+  "text": "Next day, the paper printed the same number.",
+  "voice": "bm_george",
+  "speed": 0.98
+ },
+ {
+  "id": "L5",
+  "text": "The first flight lasted twelve seconds. One hundred and twenty feet.",
+  "voice": "bm_george",
+  "speed": 0.98
+ },
+ {
+  "id": "L7",
+  "text": "The fourth flight: eight hundred and fifty-two feet, in fifty-nine seconds.",
+  "voice": "bm_george",
+  "speed": 1.0
+ },
+ {
+  "id": "L8",
+  "text": "The telegram was two seconds short.",
+  "voice": "bm_george",
+  "speed": 0.92
+ }
+]

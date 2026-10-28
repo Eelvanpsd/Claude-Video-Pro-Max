@@ -1,0 +1,129 @@
+name: Catalog Previews
+
+permissions:
+  contents: read
+
+# Suppress hyperframes CLI telemetry from HeyGen's own CI runs.
+# External users' CI continues to emit telemetry unless they set this themselves.
+env:
+  HYPERFRAMES_NO_TELEMETRY: "1"
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "registry/blocks/**"
+      - "registry/components/**"
+      - "scripts/generate-catalog-previews.ts"
+      # Modules the renderer imports. Without them a change to path-traversal
+      # defence or temp-directory allocation alone never re-runs the job that
+      # exercises it.
+      - "scripts/registry-target-paths.mjs"
+      - "scripts/catalog-preview-temp.ts"
+      - ".github/workflows/catalog-previews.yml"
+
+concurrency:
+  group: catalog-previews-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Preflight (lint + format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/preflight
+
+  render-previews:
+    name: Render catalog previews
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run build
+
+      # Chrome headless shell for rendering
+      - uses: browser-actions/setup-chrome@c785b87e244131f27c9f19c1a33e2ead956ab7ce # v1
+        with:
+          chrome-version: stable
+
+      # The renderer shells out to ffmpeg for both halves of a preview: the
+      # poster transcode and the web encode of the mp4. Neither ran here before
+      # (`--skip-video` skipped the encode, and the poster copy was a plain
+      # file copy), so the job never needed it and ubuntu-latest does not ship
+      # it.
+      - name: Install ffmpeg
+        uses: ./.github/actions/install-ffmpeg-linux
+
+      - name: Render changed block/component previews
+        run: |
+          # HEAD is the PR merge ref; its first parent is the current base tip,
+          # unlike the event payload's base.sha, which can go stale.
+          BASE_SHA="$(git rev-parse HEAD^1)"
+
+          # Find which blocks/components changed in this PR. The trailing slash
+          # in the grep matters: an item is a directory, and a file sitting
+          # directly under registry/components (CATALOG.md) does not match the
+          # sed, so without it the whole path survives and is passed to the
+          # renderer as if it were an item name.
+          CHANGED_ITEMS=$(git diff --name-only --diff-filter=ACMR "$BASE_SHA"...HEAD -- registry/blocks/ registry/components/ \
+            | grep -E '^registry/(blocks|components)/[^/]+/' \
+            | sed 's|^registry/[^/]*/\([^/]*\)/.*|\1|' \
+            | sort -u)
+
+          # A renderer change reaches every item, so it cannot be trusted to a
+          # PR that happens to also touch a block. Two canaries cover the two
+          # shapes the renderer has to tell apart: a block whose scene lives in
+          # a <template> (mounted through a wrapper) and one that registers its
+          # timeline at body level (rendered directly). Getting that wrong is
+          # silent — the wrong-shaped block renders blank, not red.
+          RENDERER_CHANGED=$(git diff --name-only --diff-filter=ACMR "$BASE_SHA"...HEAD \
+            -- scripts/generate-catalog-previews.ts scripts/registry-target-paths.mjs \
+               scripts/catalog-preview-temp.ts)
+          if [ -n "$RENDERER_CHANGED" ]; then
+            CHANGED_ITEMS=$(printf '%s\n' $CHANGED_ITEMS \
+              code-snippet-dark-modern code-snippet-apple-terminal-pro | sort -u)
+          fi
+
+          if [ -z "$CHANGED_ITEMS" ]; then
+            echo "No block/component changes detected."
+            exit 0
+          fi
+
+          echo "Changed items: $CHANGED_ITEMS"
+          FAILED=0
+
+          for item in $CHANGED_ITEMS; do
+            echo "Rendering preview for: $item"
+            if ! timeout 120 npx tsx scripts/generate-catalog-previews.ts --only "$item" --skip-video; then
+              echo "::warning::Failed to render preview for $item"
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::warning::$FAILED item(s) failed to render"
+            exit 1
+          fi
+
+      - name: Upload preview artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: catalog-previews
+          path: docs/images/catalog/
+          if-no-files-found: ignore
+          retention-days: 7

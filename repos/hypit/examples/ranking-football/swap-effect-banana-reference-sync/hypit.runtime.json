@@ -1,0 +1,40 @@
+{
+  "format": "hypit.runtime-local@1",
+  "dataRoot": ".hypit/runtimes/local",
+  "credentials": {
+    "local": {
+      "use": "@hypit/credential-store-local"
+    }
+  },
+  "endpoints": {
+    "media.local": {
+      "use": "@hypit/media-local",
+      "config": {
+        "defaultConcurrency": 2
+      }
+    },
+    "whisperx.local": {
+      "use": "@hypit/provider-whisperx-local",
+      "config": {
+        "defaultConcurrency": 1
+      }
+    },
+    "html.local": {
+      "use": "@hypit/provider-html-local",
+      "config": {
+        "workers": 2,
+        "quality": "standard",
+        "defaultConcurrency": 1
+      }
+    },
+    "hypihub.default": {
+      "use": "@hypit/provider-hypihub",
+      "config": {
+        "apiKey": {
+          "store": "local",
+          "key": "hypihub.default"
+        }
+      }
+    }
+  }
+}

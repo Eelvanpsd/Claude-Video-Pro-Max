@@ -1,6 +1,6 @@
 # ClaudeAnimationBase — JohnHeibel/ClaudeAnimationBase
 
-> Submodule: [`repos/ClaudeAnimationBase`](../../repos/ClaudeAnimationBase) · License: **MIT** · Verdict: ✅ **Adopt**
+> Source (vendored): [`repos/ClaudeAnimationBase`](../../repos/ClaudeAnimationBase) · License: **MIT** · Verdict: ✅ **Adopt**
 
 ## What it is
 A small starter kit for **hand-painted character animation** (the "Clawd" mascot) in p5.js 2 + p5.brush (watercolour, ink, boiling lines), rendered through headless Chrome (puppeteer-core) + ffmpeg. The heart is `ANIMATION_GUIDE.md` (461 lines of rules, workflow and API).

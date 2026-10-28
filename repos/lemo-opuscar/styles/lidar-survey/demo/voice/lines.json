@@ -1,0 +1,82 @@
+[
+ {
+  "id": "l1",
+  "text": "From the air, it's only forest.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l2",
+  "text": "But laser light slips between the leaves,",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l3",
+  "text": "and some of it reaches the ground.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l4",
+  "text": "Remove every return that hit a tree.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l5",
+  "text": "And the ground remembers.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l6",
+  "text": "Stone walls. Old fields, under the trees.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l7",
+  "text": "We traced three point four kilometres of wall.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "We traced 3.4 km of wall."
+ },
+ {
+  "id": "l8",
+  "text": "Just over half a metre high.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ },
+ {
+  "id": "l9",
+  "text": "In eighteen seventy, two thirds of Ashford was farmland.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "In 1870, two thirds of Ashford was farmland."
+ },
+ {
+  "id": "l10",
+  "text": "By two thousand and six, four fifths was forest.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb",
+  "asr": "By 2006, four fifths was forest."
+ },
+ {
+  "id": "l11",
+  "text": "The forest kept the map.",
+  "voice": "bm_george",
+  "speed": 1,
+  "lang": "en-gb"
+ }
+]

@@ -1,0 +1,47 @@
+{
+  "name": "@hypit/html-video",
+  "version": "0.2.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "dependencies": {
+    "@hypit/composition": "workspace:^0.1.0",
+    "@hypit/html-program": "workspace:^0.1.0",
+    "@hypit/media": "workspace:^0.1.0",
+    "@hypit/media-operations": "workspace:^0.2.0",
+    "@hypit/temporal": "workspace:^0.1.0",
+    "@hypit/timeline": "workspace:^0.1.0"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1"
+  },
+  "devDependencies": {
+    "@hypit/compiler": "workspace:*",
+    "@hypit/blob": "workspace:*",
+    "@hypit/composition": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/source": "workspace:*",
+    "@hypit/html-program": "workspace:*",
+    "@hypit/media": "workspace:*",
+    "@hypit/producer": "workspace:*",
+    "@hypit/timeline": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/temporal": "workspace:*",
+    "@hypit/kernel": "workspace:*",
+    "@hypit/executor": "workspace:*",
+    "@hypit/recipe": "workspace:*",
+    "@hypit/admission": "workspace:*",
+    "@hypit/hypit": "workspace:*",
+    "@hypit/protocol": "workspace:*"
+  }
+}

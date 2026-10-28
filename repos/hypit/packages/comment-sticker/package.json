@@ -1,0 +1,44 @@
+{
+  "name": "@hypit/comment-sticker",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./studio": "./src/studio.ts"
+  },
+  "files": [
+    "dist",
+    "preview",
+    "README.md"
+  ],
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1",
+    "@hypit/studio-companion": "workspace:^0.1.1"
+  },
+  "devDependencies": {
+    "@hypit/blob": "workspace:*",
+    "@hypit/html-program": "workspace:*",
+    "@hypit/hypit": "workspace:*",
+    "@hypit/studio-companion": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/media": "workspace:*",
+    "@hypit/spatial": "workspace:*",
+    "@hypit/recipe": "workspace:*",
+    "@hypit/temporal": "workspace:*",
+    "@hypit/text": "workspace:*",
+    "@hypit/timeline": "workspace:*",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@hypit/composition": "workspace:^0.1.0",
+    "@hypit/media": "workspace:^0.1.0",
+    "@hypit/spatial": "workspace:^0.1.0",
+    "@hypit/temporal": "workspace:^0.1.0",
+    "@hypit/timeline": "workspace:^0.1.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@explainer/single-line-captions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "hypit": {
+    "activation": "./src/activation.js"
+  },
+  "dependencies": {
+    "@hypit/caption-fine": "workspace:*",
+    "@hypit/hypit": "workspace:*",
+    "@hypit/studio-companion": "workspace:*"
+  }
+}

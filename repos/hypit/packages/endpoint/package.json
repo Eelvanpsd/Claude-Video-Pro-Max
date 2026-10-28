@@ -1,0 +1,15 @@
+{
+  "name": "@hypit/endpoint",
+  "version": "0.0.0-dev",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./http": "./src/http.ts"
+  },
+  "dependencies": {
+    "@hypit/protocol": "workspace:*",
+    "@hypit/runtime": "workspace:*"
+  }
+}

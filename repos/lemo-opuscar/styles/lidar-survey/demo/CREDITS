@@ -1,0 +1,50 @@
+The Fields Under the Forest (林下的田) — LiDAR Survey (Lemo-Opuscar) · LemoLab × Claude Opus 5.5
+
+No AI-generated images, no stock footage, no commercial basemaps. Every point and every surface in the film is
+computed from public-domain airborne lidar; the opening photograph is a public-domain aerial; every line, label
+and chart is drawn in code. Facts and measured values: FACTS.md.
+
+POINT CLOUD
+- U.S. Geological Survey, 3D Elevation Program (3DEP), lidar project USGS_LPC_CT_Statewide_B8_2016 (Connecticut, 2016),
+  all returns with the provider's classification. Entwine Point Tile copy on AWS Open Data ("USGS 3DEP LiDAR Point Clouds"):
+  https://s3-us-west-2.amazonaws.com/usgs-lidar-public/USGS_LPC_CT_Statewide_B8_2016/ept.json
+  Box lon -72.2005 … -72.1915, lat 41.8830 … 41.8920 (Ashford, Connecticut), octree depth 0–10 (full resolution), ~50 MB.
+  Public domain: "USGS-authored or produced data and information are considered to be in the U.S. Public Domain."
+  Credit: U.S. Geological Survey. Accessed 2026-10-16.
+- Scouting only (not in the film): USGS 3DEP dynamic elevation service, exportImage,
+  https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer (public domain).
+- Dataset index used to find the project: hobuinc/usgs-lidar, boundaries/resources.geojson.
+- Modifications: cropping, ground model triangulated from class-2 returns, local relief model, wall tracing and
+  snapping, a wall cross-section, height above ground for every return, display exaggeration x2 of local relief.
+
+AERIAL PHOTO
+- USDA Farm Service Agency, National Agriculture Imagery Program (NAIP), Connecticut, 2016-07-24, 0.6 m,
+  item ct_m_4107207_sw_18_.6_20160724_20160913, read and cropped through the Microsoft Planetary Computer data API
+  (https://planetarycomputer.microsoft.com, collection naip). Public domain (NAIP through 2019): "Public domain
+  information may be freely distributed or copied, but use of appropriate byline/photo/image credits is requested."
+  Credit: USDA Farm Service Agency, NAIP.
+
+FACTS
+- K. M. Johnson & W. B. Ouimet (2014), Rediscovering the lost archaeological landscape of southern New England using
+  airborne light detection and ranging (LiDAR), Journal of Archaeological Science 43: 9–20 (Ashford land area, 1870
+  improved land, 2006 forest cover; walls as ridges). US Census Bureau Geocoder (the site lies in Ashford town).
+
+FONTS (SIL Open Font License 1.1, licence texts in fonts/)
+- Noto Sans SC — Google / Adobe, variable font from github.com/google/fonts (ofl/notosanssc), subset to the
+  characters used (tools/fonts.py)
+- Barlow Condensed — The Barlow Project Authors (readings, English subtitle line), github.com/google/fonts (ofl/barlowcondensed)
+- IBM Plex Mono — IBM (instruments, source lines), github.com/google/fonts (ofl/ibmplexmono)
+  All fonts are fetched by tools/fonts.py when missing (they are not in git).
+
+VOICE
+- Kokoro-82M (hexgrad), voice bm_george, Apache License 2.0; run locally via kokoro-onnx (MIT) through the
+  library's core/tts/tts.py. Speech check: faster-whisper small.en (MIT; OpenAI Whisper weights, MIT).
+
+MUSIC AND SOUND
+- Original score and sound design, synthesised in mix.py (numpy/scipy) on the film's timeline.
+- Samples (CC0): VS Chamber Orchestra: Community Edition (Versilian Studios), Versilian Community Sample Library
+  (Versilian Studios) — marimba, bowed vibraphone, timpani, bass drum, gran cassa — through core/audio/sampler.py.
+
+SOFTWARE
+- three.js 0.170.0 (MIT), playwright-core + headless Chromium, FFmpeg; laspy + lazrs (BSD-2 / Apache-2.0),
+  NumPy, SciPy, scikit-image, fontTools; Lemo-Opuscar core/ (render, tts, audio).

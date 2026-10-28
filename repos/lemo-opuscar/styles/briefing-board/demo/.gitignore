@@ -1,0 +1,2 @@
+# local caches of the demo build (the matting model); the private venv (.venv/) is ignored repo-wide
+.models/

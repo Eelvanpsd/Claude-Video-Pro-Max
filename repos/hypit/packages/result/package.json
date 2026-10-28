@@ -1,0 +1,15 @@
+{
+  "name": "@hypit/result",
+  "version": "0.0.0-dev",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node/index.ts"
+  },
+  "dependencies": {
+    "@hypit/protocol": "workspace:*",
+    "@hypit/atomic-file": "workspace:*"
+  }
+}

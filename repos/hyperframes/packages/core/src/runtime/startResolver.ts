@@ -1,0 +1,221 @@
+import type { RuntimeTimelineLike } from "./types";
+import { readTimelineDurationSeconds } from "./timelineDuration";
+import { resolveAuthoredTimingWindow } from "./authoredTiming";
+// Straight from playbackRate, not through media.ts's re-export: media.ts
+// imports mediaVolumeEnvelope, which needs this resolver, and the round trip
+// would be an import cycle.
+import {
+  parseStrictFiniteTimingNumber,
+  resolveNaturalMediaTimelineDuration,
+  resolveTimedImageDurationSeconds,
+} from "./playbackRate";
+import { isMediaElement } from "./domRealm";
+import { parseStartExpression } from "./startExpression";
+import {
+  compositionOriginSeconds,
+  hostInPointSeconds,
+  type HostSlot,
+  isRootGlobalMediaStart,
+  MEDIA_START_BASIS_ATTR,
+  resolveMediaStartSeconds,
+  type MediaStartInput,
+} from "../mediaTiming";
+
+export function createRuntimeStartTimeResolver(params: {
+  timelineRegistry?: Record<string, Pick<RuntimeTimelineLike, "duration"> | undefined>;
+  includeAuthoredTimingAttrs?: boolean;
+  /**
+   * The document that reference lookups (`data-start="intro + 2"`) resolve
+   * against. Defaults to the global `document` — the runtime bundle's own
+   * realm. Hosts driving a composition in an IFRAME must pass that iframe's
+   * document, or every reference silently resolves against the host page.
+   */
+  documentRef?: Document;
+}): {
+  resolveStartForElement: (element: Element, fallback?: number) => number;
+  resolveDurationForElement: (element: Element) => number | null;
+  resolveMediaStartForElement: (element: Element) => number;
+  resolveHostStartForElement: (element: Element) => number;
+  resolveHostSlotsForElement: (element: Element) => HostSlot[];
+  isRootGlobalMediaStartForElement: (element: Element) => boolean;
+} {
+  const timelineRegistry = params.timelineRegistry ?? {};
+  const includeAuthoredTimingAttrs = params.includeAuthoredTimingAttrs ?? false;
+  const doc = params.documentRef ?? document;
+  const startCache = new WeakMap<Element, number | null>();
+  const durationCache = new WeakMap<Element, number | null>();
+  const visiting = new Set<Element>();
+
+  const findReferenceTarget = (refId: string): Element | null => {
+    const byId = doc.getElementById(refId);
+    if (byId) return byId;
+    return (
+      Array.from(doc.querySelectorAll("[data-composition-id]")).find(
+        (element) => element.getAttribute("data-composition-id") === refId,
+      ) ?? null
+    );
+  };
+
+  const authoredAttr = (element: Element, name: string) =>
+    includeAuthoredTimingAttrs ? element.getAttribute(name) : null;
+
+  const resolveAuthoredDuration = (element: Element): number | null =>
+    resolveAuthoredTimingWindow({
+      start: 0,
+      duration: element.getAttribute("data-duration"),
+      authoredDuration: authoredAttr(element, "data-hf-authored-duration"),
+    })?.duration ??
+    resolveAuthoredTimingWindow({
+      start: resolveStartForElementInternal(element, 0),
+      end: element.getAttribute("data-end"),
+      authoredEnd: authoredAttr(element, "data-hf-authored-end"),
+    })?.duration ??
+    null;
+
+  const positive = (value: number | null | undefined): number | null =>
+    value != null && Number.isFinite(value) && value > 0 ? value : null;
+
+  const resolveRegisteredTimelineDuration = (element: Element): number | null => {
+    const compositionId = element.getAttribute("data-composition-id");
+    return compositionId
+      ? positive(readTimelineDurationSeconds(timelineRegistry[compositionId]))
+      : null;
+  };
+
+  const resolveDurationForElement = (element: Element): number | null => {
+    const cached = durationCache.get(element);
+    if (cached !== undefined) return cached;
+    const resolved =
+      resolveAuthoredDuration(element) ??
+      positive(
+        isMediaElement(element)
+          ? resolveNaturalMediaTimelineDuration(element, element.duration)
+          : null,
+      ) ??
+      positive(resolveTimedImageDurationSeconds(element)) ??
+      resolveRegisteredTimelineDuration(element);
+    durationCache.set(element, resolved);
+    return resolved;
+  };
+
+  const isCompositionHost = (element: Element): boolean =>
+    element.hasAttribute("data-composition-src") ||
+    element.hasAttribute("data-composition-id") ||
+    element.hasAttribute("data-composition-file");
+
+  // A mounted composition root without its own `data-start` takes its timing from the host it was
+  // loaded into: the host may use a different id than the file, or none (an anonymous host).
+  const inheritedTimingHost = (element: Element): Element | null => {
+    const parent = element.parentElement;
+    if (!parent || !element.hasAttribute("data-composition-id")) return null;
+    if (parseStartExpression(element.getAttribute("data-start"))) return null;
+    return isCompositionHost(parent) ? parent : null;
+  };
+
+  const resolveCompositionOrigin = (compositionRoot: Element, fallback: number): number =>
+    compositionOriginSeconds(
+      resolveStartForElementInternal(compositionRoot, fallback),
+      inheritedTimingHost(compositionRoot) ?? compositionRoot,
+    );
+
+  const resolveHostOffsetForElement = (element: Element, fallback: number): number => {
+    const compositionRoot = element.hasAttribute("data-composition-id")
+      ? element.parentElement?.closest("[data-composition-id]")
+      : element.closest("[data-composition-id]");
+    return compositionRoot ? resolveCompositionOrigin(compositionRoot, fallback) : 0;
+  };
+
+  const computeStart = (element: Element, fallback: number): number => {
+    const expression = parseStartExpression(element.getAttribute("data-start"));
+    if (!expression) {
+      const host = inheritedTimingHost(element);
+      return host ? resolveStartForElementInternal(host, fallback) : fallback;
+    }
+    if (expression.kind === "absolute") {
+      // Negative when a host's in-point is past its start; the host's slot cuts that part.
+      return resolveHostOffsetForElement(element, fallback) + Math.max(0, expression.value);
+    }
+    const target = findReferenceTarget(expression.refId);
+    if (!target) return fallback;
+    const targetStart = resolveStartForElementInternal(target, 0);
+    const targetDuration = resolveDurationForElement(target) ?? 0;
+    // Clamped at local 0, as a numeric start is, once an in-point puts local 0 before 0.
+    const floor = Math.min(0, resolveHostOffsetForElement(element, 0));
+    return Math.max(floor, targetStart + targetDuration + expression.offset);
+  };
+
+  const resolveStartForElementInternal = (element: Element, fallback: number): number => {
+    const cached = startCache.get(element);
+    if (cached !== undefined) {
+      return cached == null ? fallback : cached;
+    }
+    if (visiting.has(element)) {
+      return fallback;
+    }
+    visiting.add(element);
+    try {
+      const resolved = computeStart(element, fallback);
+      startCache.set(element, resolved);
+      return resolved;
+    } finally {
+      visiting.delete(element);
+    }
+  };
+
+  /**
+   * The ONE owner of "when does this media element start on the root timeline".
+   *
+   * A media element is not a plain timed clip: `data-hf-media-start-basis`
+   * decides whether its `data-start` is composition-local (the default, so the
+   * host offset is added) or a legacy root-global timestamp (already absolute,
+   * so adding the host offset double-counts it). Anything that derives a media
+   * start from attributes — the clip manifest, the visibility pass, the media
+   * cache, WebAudio scheduling — must come through here, or the timeline the
+   * editor draws stops matching the timeline that plays.
+   */
+  const mediaStartInput = (element: Element): MediaStartInput => {
+    const compositionRoot = element.closest("[data-composition-id]");
+    return {
+      authoredStart: parseStrictFiniteTimingNumber(element.getAttribute("data-start")),
+      hostStart: compositionRoot ? resolveCompositionOrigin(compositionRoot, 0) : 0,
+      hasAutoStart: element.hasAttribute("data-hf-auto-start"),
+      basis: element.getAttribute(MEDIA_START_BASIS_ATTR),
+    };
+  };
+
+  const resolveMediaStartForElement = (element: Element): number => {
+    const input = mediaStartInput(element);
+    return resolveMediaStartSeconds({
+      ...input,
+      ordinaryStart: () => resolveStartForElementInternal(element, input.hostStart),
+    });
+  };
+
+  // Hosts with an in-point, found by their composition attributes so an anonymous one counts too.
+  const resolveHostSlotsForElement = (element: Element): HostSlot[] => {
+    const slots: HostSlot[] = [];
+    for (let node = element.parentElement; node; node = node.parentElement) {
+      if (!isCompositionHost(node) || inheritedTimingHost(node)) continue;
+      if (hostInPointSeconds(node) <= 0) continue;
+      const start = resolveStartForElementInternal(node, 0);
+      const duration = resolveAuthoredDuration(node);
+      slots.push({ start, end: duration ? start + duration : Infinity });
+    }
+    return slots;
+  };
+
+  const isRootGlobalMediaStartForElement = (element: Element): boolean =>
+    isMediaElement(element) && isRootGlobalMediaStart(mediaStartInput(element));
+
+  return {
+    resolveStartForElement: (element: Element, fallback = 0) =>
+      resolveStartForElementInternal(element, Math.max(0, fallback)),
+    resolveDurationForElement: (element: Element) => resolveDurationForElement(element),
+    resolveMediaStartForElement,
+    resolveHostStartForElement: (element: Element) => resolveHostOffsetForElement(element, 0),
+    resolveHostSlotsForElement,
+    isRootGlobalMediaStartForElement,
+  };
+}
+
+export type { RuntimeTimelineLike } from "./types";

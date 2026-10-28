@@ -1,0 +1,15 @@
+{
+  "id": "print_cable",
+  "w": 1200,
+  "h": 683,
+  "anchors": {},
+  "print": true,
+  "prep": {
+    "src": "sources/candidates/cable/cable_1.tif",
+    "id": "print_cable",
+    "crop": "0,400,7360,4300",
+    "w": 1100,
+    "border": 0.045,
+    "sat": 0.85
+  }
+}

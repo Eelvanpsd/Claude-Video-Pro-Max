@@ -1,0 +1,48 @@
+{
+  "id": "arch",
+  "w": 6838,
+  "h": 1949,
+  "anchors": {
+    "L": [
+      0.16028,
+      0.98666
+    ],
+    "R": [
+      0.92673,
+      0.99743
+    ]
+  },
+  "trim": [
+    0,
+    21,
+    6838,
+    1970
+  ],
+  "prep": {
+    "raw": "sources/candidates/arch/arch_1.tif",
+    "id": "arch",
+    "rotate": 0,
+    "crop": "0,1470,7000,3440",
+    "mask": null,
+    "mask_mul": null,
+    "mask_max": null,
+    "thin_region": null,
+    "thin_color": null,
+    "radial": null,
+    "patch": [],
+    "poly": "0,0 7000,0 7000,560 6850,600 6800,1970 0,1970",
+    "cut": [
+      "2300,880,2530,1030"
+    ],
+    "keep_largest": true,
+    "min_island": 0.002,
+    "erode": 1,
+    "sat": 0.8,
+    "contrast": 1.06,
+    "warm": 0.015,
+    "gamma": 1.0,
+    "exposure": 0.0,
+    "max": 7000
+  },
+  "hangers_repaired": 20
+}

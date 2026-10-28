@@ -1,0 +1,15 @@
+{
+  "id": "print_ship",
+  "w": 1090,
+  "h": 440,
+  "anchors": {},
+  "print": true,
+  "prep": {
+    "src": "sources/derived/ship_side_clean.png",
+    "id": "print_ship",
+    "crop": "120,480,3830,1780",
+    "w": 1000,
+    "border": 0.045,
+    "sat": 0.85
+  }
+}

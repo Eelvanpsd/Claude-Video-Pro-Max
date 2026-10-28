@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "customConditions": [
+      "hypit-source"
+    ],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": [
+    "packages/**/*.ts",
+    "examples/*/packages/*/src/**/*.ts",
+    "examples/*/packages/*/test/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "packages/*/dist"
+  ]
+}

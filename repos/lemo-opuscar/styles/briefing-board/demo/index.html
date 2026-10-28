@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Engineering Briefing Board</title>
+<style>
+  @font-face { font-family: 'LXGW Marker Gothic'; src: url('kit/fonts/LXGWMarkerGothic-sub.woff2') format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Noto Sans SC'; src: url('kit/fonts/NotoSansSC-500-sub.woff2') format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Noto Sans SC'; src: url('kit/fonts/NotoSansSC-700-sub.woff2') format('woff2'); font-weight: 700; }
+  @font-face { font-family: 'Noto Sans SC'; src: url('kit/fonts/NotoSansSC-900-sub.woff2') format('woff2'); font-weight: 900; }
+  @font-face { font-family: 'Archivo'; src: url('kit/fonts/Archivo-VF.ttf') format('truetype'); font-weight: 100 900; font-stretch: 62% 125%; }
+  @font-face { font-family: 'Plex Mono'; src: url('kit/fonts/IBMPlexMono-Medium.ttf') format('truetype'); font-weight: 500; }
+  @font-face { font-family: 'Plex Mono'; src: url('kit/fonts/IBMPlexMono-SemiBold.ttf') format('truetype'); font-weight: 600; }
+  html, body { margin: 0; background: #8F8B83; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+  import { setScene, renderScene, loadFonts, sceneTexts, sceneEvents, subCheck, camAt, toWorld, screenSpeed, resCheck } from './kit/board.js';
+  const cv = document.getElementById('c');
+  const q = new URLSearchParams(location.search);
+  function size() { cv.width = innerWidth; cv.height = innerHeight; cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px'; }
+  size();
+  let cur = null;
+  // batch tools call loadScene(url) between screenshots; the film uses ?scene=scenes/film.json (default)
+  window.loadScene = async (url) => {
+    const s = await (await fetch(url)).json();
+    cur = await setScene(s); window.DUR = cur.dur || 1; window.EV = sceneEvents(); size();
+    return { t: s.t ?? cur.t ?? 1000, size: s.size || [1920, 1080] };
+  };
+  window.render = (t) => renderScene(cv, t);
+  window.TEXTS = (t) => sceneTexts(t);
+  window.SUBCHECK = () => subCheck();
+  window.CAM = (t) => camAt(t);
+  window.TOWORLD = (p, t) => toWorld(p, t);
+  window.SPEED = (t) => screenSpeed(t);
+  window.RESCHECK = (t) => resCheck(t);
+  await loadFonts();
+  await window.loadScene(q.get('scene') || 'scenes/film.json');
+  window.render(cur.t ?? 0);
+  window.READY = true;
+</script>
+</body>
+</html>

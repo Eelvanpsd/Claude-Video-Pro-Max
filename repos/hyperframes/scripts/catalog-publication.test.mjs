@@ -1,0 +1,461 @@
+import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { test } from "node:test";
+import { parse } from "yaml";
+import { catalogChanges, commitBatches } from "./publish-catalog.mjs";
+import { GENERATED_CATALOG_PATHS } from "./catalog-generated-paths.mjs";
+import { committedCatalogOutputs } from "./check-catalog-source-pr.mjs";
+
+test("catalog source edits reject generated commits while a publication alone is accepted", () => {
+  assert.deepEqual(
+    committedCatalogOutputs(["registry/components/new/index.html", "docs/docs.json"]),
+    ["docs/docs.json"],
+  );
+  assert.deepEqual(committedCatalogOutputs(["docs/docs.json"]), []);
+  assert.deepEqual(committedCatalogOutputs(["registry/components/new/registry-item.json"]), []);
+});
+
+test("publication includes changed, new and deleted generated files and excludes source changes", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "catalog-publish-test-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => execFileSync("git", args, { cwd: root });
+  const write = (path, content) => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), content);
+  };
+  git("init", "-q");
+  write("registry/registry.json", "old");
+  write("docs/public/catalog/blocks/gone.json", "old");
+  write("registry/blocks/source/index.html", "source");
+  git("add", ".");
+  git(
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-qm",
+    "fixture",
+  );
+  write("registry/registry.json", "new");
+  write("registry/blocks/source/index.html", "changed source");
+  write("docs/public/catalog/blocks/new.json", Buffer.from([0, 255, 4]));
+  rmSync(join(root, "docs/public/catalog/blocks/gone.json"));
+  assert.deepEqual(catalogChanges(root, "HEAD"), [
+    { path: "docs/public/catalog/blocks/gone.json", kind: "delete" },
+    { path: "docs/public/catalog/blocks/new.json", kind: "write", contents: "AP8E" },
+    { path: "registry/registry.json", kind: "write", contents: "bmV3" },
+  ]);
+});
+
+test("signed API batches preserve deletions and limit each request to 100 changes", () => {
+  const changes = Array.from({ length: 101 }, (_, index) => ({
+    kind: "delete",
+    path: `docs/public/catalog/${index}.json`,
+  }));
+  const batches = commitBatches(changes);
+  assert.deepEqual(
+    batches.map((batch) => batch.deletions.length),
+    [100, 1],
+  );
+  assert.deepEqual(batches[1], {
+    additions: [],
+    deletions: [{ path: "docs/public/catalog/100.json" }],
+  });
+});
+
+test("oversized API files fail before any publication", () => {
+  assert.throws(
+    () =>
+      commitBatches([
+        {
+          kind: "write",
+          path: "docs/public/catalog/large.json",
+          contents: "x".repeat(10 * 1024 * 1024),
+        },
+      ]),
+    /exceeds API batch budget/,
+  );
+});
+
+function publicationFixture(t, changed, apiEnv = {}) {
+  const root = mkdtempSync(join(tmpdir(), "catalog-publication-api-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+  git("init", "-q");
+  for (const path of GENERATED_CATALOG_PATHS) {
+    const target = path.includes(".") ? path : `${path}/fixture.json`;
+    mkdirSync(dirname(join(root, target)), { recursive: true });
+    writeFileSync(join(root, target), "published");
+  }
+  const base = commitPaths(git, "fixture", ["."]);
+  git("init", "-q", "--bare", "origin.git");
+  git("remote", "add", "origin", join(root, "origin.git"));
+  git("push", "-q", "origin", "HEAD:refs/heads/bot/catalog-publish");
+  if (changed) writeFileSync(join(root, "registry/registry.json"), "new publication");
+  const executable = join(root, "gh");
+  writeFileSync(
+    executable,
+    `#!/usr/bin/env node
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+const endpoint = args[1];
+const method = args[args.indexOf("--method") + 1];
+const body = args.includes("--input") ? JSON.parse(fs.readFileSync(0, "utf8")) : undefined;
+fs.appendFileSync(process.env.API_CALLS, JSON.stringify({ endpoint, method, body }) + "\\n");
+if (!process.env.PUBLISH_SUCCESS && (endpoint === "graphql" || method === "DELETE")) {
+  console.error(endpoint === "graphql" ? "commit rejected" : "cleanup rejected");
+  process.exit(1);
+}
+if (endpoint === "graphql") console.log("c".repeat(40));
+else if (endpoint.includes("/runs?")) console.log(JSON.stringify({ workflow_runs: JSON.parse(process.env.WORKFLOW_RUNS || "[]") }));
+else if (endpoint.endsWith("/dispatches") && process.env.DISPATCH_FAIL) process.exit(1);
+else if (endpoint.endsWith("/ref/heads/main")) console.log(process.env.BASE);
+else if (endpoint.includes("/matching-refs/")) console.log(process.env.NO_BRANCH ? "" : "refs/heads/bot/catalog-publish");
+else if (endpoint.includes("/ref/heads/bot/catalog-publish")) console.log("a".repeat(40));
+else if (endpoint.includes("/pulls?")) console.log(process.env.NO_OPEN_PR ? "" : "42");
+`,
+    { mode: 0o755 },
+  );
+  const calls = join(root, "calls.jsonl");
+  const run = () =>
+    execFileSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
+import { publish } from ${JSON.stringify(new URL("./publish-catalog.mjs", import.meta.url).href)};
+try { publish(process.env.FIXTURE_ROOT); }
+catch (error) {
+  console.log(JSON.stringify({ message: error.message, causes: error.errors?.map(cause => cause.message) }));
+  process.exitCode = 1;
+}
+`,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${root}:${process.env.PATH}`,
+          BASE: git("rev-parse", "HEAD"),
+          API_CALLS: calls,
+          FIXTURE_ROOT: root,
+          GITHUB_REPOSITORY: "test/catalog",
+          GITHUB_RUN_ID: "123",
+          GITHUB_RUN_ATTEMPT: "1",
+          ...apiEnv,
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
+  return {
+    root,
+    base,
+    git,
+    run,
+    calls: () =>
+      readFileSync(calls, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line)),
+  };
+}
+
+test("reverting unpublished sources closes the obsolete PR and resets its branch to main", (t) => {
+  const fixture = publicationFixture(t, false);
+  fixture.run();
+  assert.deepEqual(
+    fixture.calls().filter((call) => call.method !== "GET"),
+    [
+      { endpoint: "repos/test/catalog/pulls/42", method: "PATCH", body: { state: "closed" } },
+      {
+        endpoint: "repos/test/catalog/git/refs/heads/bot/catalog-publish",
+        method: "PATCH",
+        body: { sha: fixture.base, force: true },
+      },
+    ],
+  );
+});
+
+test("a failed staging cleanup preserves the publication failure as well", (t) => {
+  const fixture = publicationFixture(t, true);
+  assert.throws(fixture.run, (error) => {
+    const result = JSON.parse(error.stdout.trim().split("\n").at(-1));
+    assert.equal(result.message, "Publication and staging cleanup failed.");
+    assert.equal(result.causes.length, 2);
+    assert.match(result.causes[0], /commit rejected/);
+    assert.match(result.causes[1], /cleanup rejected/);
+    return true;
+  });
+  assert.equal(fixture.calls().at(-1).method, "DELETE");
+  assert.equal(
+    fixture.calls().some((call) => call.method === "PATCH"),
+    false,
+  );
+});
+
+test("publication refuses symlinks instead of reading outside the generated artifact", (t) => {
+  const fixture = publicationFixture(t, false);
+  const artifact = join(fixture.root, "registry/registry.json");
+  const unrelated = join(fixture.root, "private.txt");
+  writeFileSync(unrelated, "must not be published");
+  rmSync(artifact);
+  symlinkSync(unrelated, artifact);
+  assert.throws(() => catalogChanges(fixture.root, "HEAD"), /ELOOP|symbolic link/);
+});
+
+test("publication dispatches every required workflow after updating its branch and PR", (t) => {
+  const fixture = publicationFixture(t, true, { PUBLISH_SUCCESS: "1" });
+  fixture.run();
+  const calls = fixture.calls();
+  const dispatches = calls.filter((call) => call.endpoint.endsWith("/dispatches"));
+  assert.deepEqual(
+    dispatches.map((call) => call.endpoint.split("/").at(-2)),
+    ["ci.yml", "regression.yml", "windows-render.yml", "pr-captures.yml", "codeql.yml"],
+  );
+  assert.deepEqual(
+    dispatches.map((call) => call.body),
+    [
+      { ref: "bot/catalog-publish", inputs: { catalog_publish: true } },
+      { ref: "bot/catalog-publish", inputs: { catalog_publish: true } },
+      { ref: "bot/catalog-publish" },
+      { ref: "bot/catalog-publish" },
+      { ref: "bot/catalog-publish" },
+    ],
+  );
+  assert.ok(
+    calls.indexOf(dispatches[0]) >
+      calls.findIndex((call) => call.endpoint.endsWith("/pulls/42") && call.method === "PATCH"),
+  );
+});
+
+test("publication leaves existing successful workflows at the same head alone", (t) => {
+  const fixture = publicationFixture(t, true, {
+    PUBLISH_SUCCESS: "1",
+    WORKFLOW_RUNS: JSON.stringify([
+      { status: "completed", conclusion: "success", display_title: "Ordinary dispatch" },
+      {
+        status: "completed",
+        conclusion: "success",
+        display_title: "Checks (catalog_publish=true)",
+      },
+    ]),
+  });
+  fixture.run();
+  assert.equal(fixture.calls().filter((call) => call.endpoint.endsWith("/dispatches")).length, 0);
+});
+
+test("ordinary dispatch success cannot suppress full publication checks", (t) => {
+  const fixture = publicationFixture(t, true, {
+    PUBLISH_SUCCESS: "1",
+    WORKFLOW_RUNS: JSON.stringify([
+      { status: "completed", conclusion: "success", display_title: "Ordinary dispatch" },
+    ]),
+  });
+  fixture.run();
+  assert.deepEqual(
+    fixture
+      .calls()
+      .filter((call) => call.endpoint.endsWith("/dispatches"))
+      .map((call) => call.endpoint.split("/").at(-2)),
+    ["ci.yml", "regression.yml"],
+  );
+});
+
+test("dispatch rejection fails publication and still cleans up the staging branch", (t) => {
+  const fixture = publicationFixture(t, true, { PUBLISH_SUCCESS: "1", DISPATCH_FAIL: "1" });
+  assert.throws(fixture.run);
+  assert.equal(fixture.calls().at(-1).method, "DELETE");
+});
+
+const regressionWorkflow = parse(
+  readFileSync(new URL("../.github/workflows/regression.yml", import.meta.url), "utf8"),
+);
+const summary = regressionWorkflow.jobs.regression.steps.find(
+  (step) => step.name === "Check results",
+);
+
+function runSummary(changes, code, shards) {
+  return spawnSync("bash", ["-e", "-c", summary.run], {
+    encoding: "utf8",
+    env: { ...process.env, CHANGES_RESULT: changes, CODE_CHANGED: code, SHARDS_RESULT: shards },
+    timeout: 5000,
+  });
+}
+
+test("regression fails when change detection did not finish successfully", () => {
+  for (const state of ["failure", "cancelled", "skipped"]) {
+    const result = runSummary(state, "false", "skipped");
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+  }
+});
+
+test("regression accepts an explicit successful no-change decision", () => {
+  const result = runSummary("success", "false", "skipped");
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+test("regression rejects missing or malformed change decisions", () => {
+  for (const decision of ["", "unknown"]) {
+    const result = runSummary("success", decision, "success");
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+  }
+});
+
+test("regression code changes require every shard to succeed", () => {
+  for (const state of ["failure", "cancelled", "skipped"]) {
+    const result = runSummary("success", "true", state);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+  }
+});
+
+test("regression accepts completed shards after successful change detection", () => {
+  const result = runSummary("success", "true", "success");
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+});
+
+function commitPaths(git, message, paths) {
+  git("add", "-A", "--", ...paths);
+  git(
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-qm",
+    message,
+  );
+  return git("rev-parse", "HEAD");
+}
+
+const VECTOR_META = "registry/catalog-artifact/local-vectors.json";
+const VECTOR_BIN = "registry/catalog-artifact/local-vectors.bin";
+// Two rows of two dimensions.
+const vectors = (...values) => Buffer.from(new Float32Array(values).buffer);
+
+// Publishes the working tree's files at `paths` and leaves them in place, as the next run would regenerate them.
+function publish(fixture, paths = GENERATED_CATALOG_PATHS) {
+  commitPaths(fixture.git, "publication", paths);
+  fixture.git("push", "-q", "-f", "origin", "HEAD:bot/catalog-publish");
+  fixture.git("reset", "-q", "HEAD~");
+}
+
+function commitToMain(fixture, path, contents) {
+  const kept = existsSync(join(fixture.root, path))
+    ? readFileSync(join(fixture.root, path))
+    : undefined;
+  writeFileSync(join(fixture.root, path), contents);
+  commitPaths(fixture.git, "main push", [path]);
+  if (kept !== undefined) writeFileSync(join(fixture.root, path), kept);
+}
+
+const rewrites = (fixture) =>
+  fixture
+    .calls()
+    .some((call) => call.endpoint === "graphql" || call.endpoint.includes("/refs/heads/bot/"));
+
+function vectorFixture(t, changed = true, apiEnv = {}) {
+  const fixture = publicationFixture(t, changed, { PUBLISH_SUCCESS: "1", ...apiEnv });
+  writeFileSync(join(fixture.root, VECTOR_META), JSON.stringify({ dimensions: 2 }));
+  writeFileSync(join(fixture.root, VECTOR_BIN), vectors(1, 0, 0, 1));
+  return fixture;
+}
+
+test("an unrelated main push leaves the approved publication alone", (t) => {
+  const fixture = publicationFixture(t, true, { PUBLISH_SUCCESS: "1" });
+  publish(fixture);
+  commitToMain(fixture, "notes.txt", "unrelated");
+  fixture.run();
+  assert.equal(rewrites(fixture), false);
+});
+
+test("regenerated vectors replace the publication only when they point elsewhere", (t) => {
+  for (const [regenerated, rewritten] of [
+    [vectors(1, 0.001, 0.001, 1), false],
+    [vectors(1, 0, 1, 0), true],
+  ]) {
+    const fixture = vectorFixture(t);
+    publish(fixture);
+    commitToMain(fixture, "notes.txt", "unrelated");
+    writeFileSync(join(fixture.root, VECTOR_BIN), regenerated);
+    fixture.run();
+    assert.equal(rewrites(fixture), rewritten);
+  }
+});
+
+function regenerateOverMain(t, regenerated, apiEnv, onMain) {
+  const fixture = vectorFixture(t, false, { NO_OPEN_PR: "1", ...apiEnv });
+  commitPaths(fixture.git, "main carries the catalog", [VECTOR_META, VECTOR_BIN]);
+  onMain(fixture);
+  writeFileSync(join(fixture.root, VECTOR_BIN), regenerated);
+  fixture.run();
+  return { fixture, writes: fixture.calls().filter((call) => call.method !== "GET") };
+}
+
+const noise = vectors(1, 0.001, 0.001, 1);
+
+test("vector noise over a standing branch already in main opens no empty PR", (t) => {
+  const { fixture, writes } = regenerateOverMain(t, noise, {}, (main) => {
+    main.git("push", "-q", "-f", "origin", "HEAD:bot/catalog-publish");
+    commitToMain(main, "notes.txt", "unrelated");
+  });
+  assert.deepEqual(writes, [
+    {
+      endpoint: "repos/test/catalog/git/refs/heads/bot/catalog-publish",
+      method: "PATCH",
+      body: { sha: fixture.git("rev-parse", "HEAD"), force: true },
+    },
+  ]);
+});
+
+test("vector noise after the publish branch was deleted opens no PR", (t) => {
+  assert.deepEqual(regenerateOverMain(t, noise, { NO_BRANCH: "1" }, () => {}).writes, []);
+});
+
+test("vectors that point elsewhere than main's still publish", (t) => {
+  const { writes } = regenerateOverMain(t, vectors(1, 0, 1, 0), { NO_BRANCH: "1" }, () => {});
+  assert.ok(writes.some((call) => call.endpoint === "graphql"));
+});
+
+test("vectors the publication lacks replace it", (t) => {
+  const fixture = vectorFixture(t);
+  rmSync(join(fixture.root, VECTOR_BIN));
+  publish(fixture);
+  commitToMain(fixture, "notes.txt", "unrelated");
+  writeFileSync(join(fixture.root, VECTOR_BIN), vectors(1, 0, 0, 1));
+  fixture.run();
+  assert.equal(rewrites(fixture), true);
+});
+
+test("a main commit to a generated file replaces the publication", (t) => {
+  const fixture = publicationFixture(t, true, { PUBLISH_SUCCESS: "1" });
+  publish(fixture);
+  commitToMain(fixture, "registry/registry.json", "edited on main");
+  fixture.run();
+  assert.equal(rewrites(fixture), true);
+});
+
+test("a publication carrying anything but generated files is replaced", (t) => {
+  const fixture = publicationFixture(t, true, { PUBLISH_SUCCESS: "1" });
+  writeFileSync(join(fixture.root, "extra.sh"), "not generated");
+  publish(fixture, [...GENERATED_CATALOG_PATHS, "extra.sh"]);
+  commitToMain(fixture, "notes.txt", "unrelated");
+  fixture.run();
+  assert.equal(rewrites(fixture), true);
+});

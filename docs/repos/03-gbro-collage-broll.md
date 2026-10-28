@@ -1,6 +1,6 @@
 # gbro-collage-broll — pyang5166/gbro-collage-broll
 
-> Submodule: [`repos/gbro-collage-broll`](../../repos/gbro-collage-broll) · License: **MIT** · Verdict: ❌ **Core rejected** (needs paid Gemini video + AI image generation) — workflow & ffmpeg QA reusable
+> Source (vendored): [`repos/gbro-collage-broll`](../../repos/gbro-collage-broll) · License: **MIT** · Verdict: ❌ **Core rejected** (needs paid Gemini video + AI image generation) — workflow & ffmpeg QA reusable
 
 ## What it is
 A Codex/agent skill (`SKILL.md`, documented in Chinese) that turns a ~5 s voiceover line into a **halftone paper-collage "assemble-from-empty" B-roll** clip (9:16, 720×1280, 24 fps, silent) through three approval gates:

@@ -1,0 +1,46 @@
+{
+  "id": "cable_half",
+  "w": 6818,
+  "h": 2813,
+  "trim": [
+    0,
+    67,
+    6818,
+    2880
+  ],
+  "anchors": {
+    "P": [
+      0.68656,
+      0.99822
+    ]
+  },
+  "prep": {
+    "raw": "sources/candidates/cable/cable_1.tif",
+    "id": "cable_half",
+    "rotate": 0,
+    "crop": "82,600,6900,3480",
+    "mask": null,
+    "mask_mul": "sources/masks/cable_nosky.png",
+    "mask_max": null,
+    "thin_region": null,
+    "thin_color": null,
+    "radial": null,
+    "patch": [
+      "4820,2380,4915,2820,-190,0"
+    ],
+    "poly": null,
+    "cut": [
+      "4560,2060,4760,2112"
+    ],
+    "keep_largest": false,
+    "min_island": 0.0003,
+    "erode": 0,
+    "sat": 0.55,
+    "contrast": 1.06,
+    "warm": 0.015,
+    "gamma": 1.0,
+    "exposure": 0.0,
+    "max": 7000
+  },
+  "stays_redrawn": 43
+}

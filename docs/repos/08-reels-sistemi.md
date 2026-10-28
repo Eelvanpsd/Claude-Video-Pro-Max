@@ -1,6 +1,6 @@
 # reels-sistemi — yapaytu/reels-sistemi
 
-> Submodule: [`repos/reels-sistemi`](../../repos/reels-sistemi) · License: **MIT** · Verdict: 💡 **Ideas only — three pieces adopted, engine skipped**
+> Source (vendored): [`repos/reels-sistemi`](../../repos/reels-sistemi) · License: **MIT** · Verdict: 💡 **Ideas only — three pieces adopted, engine skipped**
 
 ## What it is
 A small (~300 lines) Turkish-language Claude Code skill + tools for 30–40 s Reels/TikTok/Shorts: hook and script

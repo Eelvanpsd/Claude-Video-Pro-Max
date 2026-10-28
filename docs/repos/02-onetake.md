@@ -1,6 +1,6 @@
 # onetake — feitangyuan/onetake
 
-> Submodule: [`repos/onetake`](../../repos/onetake) · License: **PolyForm Noncommercial 1.0.0** ("free for noncommercial use only") · Verdict: 💡 **Ideas only — do not copy code into monetised work**
+> Source (vendored): [`repos/onetake`](../../repos/onetake) · License: **PolyForm Noncommercial 1.0.0** ("free for noncommercial use only") · Verdict: 💡 **Ideas only — do not copy code into monetised work**
 
 ## What it is
 A Claude Agent Skill (`SKILL.md`) for 10–30 s product/launch/teaser motion films. Core idea: **"one continuous take"** — every beat boundary must *carry* something across. A film is one HTML composition where every value is a pure function of time (`window.__seek(t)`), built from a move library (`lib/motion.js` → `window.OM`). Python + Playwright/Chromium scripts render, probe and verify.

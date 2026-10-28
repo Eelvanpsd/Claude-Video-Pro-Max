@@ -1,0 +1,67 @@
+[
+ {
+  "id": "v1",
+  "text": "Twenty-one keys. Half a keyboard.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "v2",
+  "text": "Take it apart: six layers.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "v3",
+  "text": "Every one of them is drawn in open files.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "v4",
+  "text": "One R P twenty forty chip runs it all.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us",
+  "asr": "One RP 2040 chip runs it all."
+ },
+ {
+  "id": "v5",
+  "text": "Twenty-three lights, mounted upside down.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "v6",
+  "text": "Hot-swappable. No soldering.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "v7",
+  "text": "Put it back together.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "v8",
+  "text": "Nineteen point oh five millimetres apart.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us",
+  "asr": "19.05 millimeters apart."
+ },
+ {
+  "id": "v9",
+  "text": "Every number is public.",
+  "voice": "am_michael",
+  "speed": 0.95,
+  "lang": "en-us"
+ }
+]

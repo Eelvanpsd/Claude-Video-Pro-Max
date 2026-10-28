@@ -1,0 +1,36 @@
+{
+  "name": "@hypit/provider-pollo",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1",
+    "@hypit/runtime-local": "workspace:^0.1.1"
+  },
+  "devDependencies": {
+    "@hypit/endpoint": "workspace:*",
+    "@hypit/generation": "workspace:*",
+    "@hypit/hypit": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/runtime": "workspace:*",
+    "@hypit/runtime-local": "workspace:*",
+    "@hypit/gpt-image": "workspace:*",
+    "@hypit/grok-imagine": "workspace:*",
+    "@hypit/minimax-h3": "workspace:*",
+    "@hypit/nano-banana": "workspace:*"
+  },
+  "dependencies": {
+    "@hypit/generation": "workspace:^0.1.0"
+  }
+}

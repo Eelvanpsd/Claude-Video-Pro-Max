@@ -1,0 +1,365 @@
+import { afterEach, describe, it, expect } from "vitest";
+import { ParentMediaManager, type ProxyEntry } from "./parent-media";
+
+// A fake media element whose paused state is driven by play()/pause() stubs.
+function makeFakeAudio(initiallyPaused: boolean): HTMLMediaElement {
+  const el = new Audio();
+  let paused = initiallyPaused;
+  Object.defineProperty(el, "paused", { get: () => paused });
+  el.pause = () => {
+    paused = true;
+  };
+  el.play = () => {
+    paused = false;
+    return Promise.resolve();
+  };
+  el.src = "https://example.test/music.mp3";
+  return el;
+}
+
+function makeManager(overrides: Partial<{ isPaused: boolean; owner: "runtime" | "parent" }> = {}) {
+  const mgr = new ParentMediaManager({
+    dispatchEvent: () => {},
+    getMuted: () => false,
+    getVolume: () => 1,
+    getPlaybackRate: () => 1,
+    getCurrentTime: () => 0,
+    isPaused: () => overrides.isPaused ?? true,
+  });
+  return mgr;
+}
+
+describe("ParentMediaManager audio-src proxy lifecycle", () => {
+  it("replaces the audio-src proxy instead of stacking a second one", () => {
+    const mgr = makeManager();
+    mgr.setupFromUrl("https://example.test/a.mp3");
+    expect(mgr.entries).toHaveLength(1);
+
+    mgr.setupFromUrl("https://example.test/b.mp3");
+    // The old proxy must be gone, not accumulated alongside the new one.
+    expect(mgr.entries).toHaveLength(1);
+    expect(mgr.entries[0].el.src).toBe("https://example.test/b.mp3");
+  });
+
+  it("is a no-op when the same audio-src URL is set again", () => {
+    const mgr = makeManager();
+    mgr.setupFromUrl("https://example.test/a.mp3");
+    const first = mgr.entries[0];
+
+    mgr.setupFromUrl("https://example.test/a.mp3");
+    expect(mgr.entries).toHaveLength(1);
+    // Same element reference — not torn down and rebuilt.
+    expect(mgr.entries[0]).toBe(first);
+  });
+
+  it("clears the audio-src proxy on teardownUrlAudio", () => {
+    const mgr = makeManager();
+    mgr.setupFromUrl("https://example.test/a.mp3");
+    const el = mgr.entries[0].el;
+
+    mgr.teardownUrlAudio();
+    expect(mgr.entries).toHaveLength(0);
+    // The proxy's source is reset so it stops preloading.
+    expect(el.src).not.toBe("https://example.test/a.mp3");
+  });
+
+  it("teardownUrlAudio removes only the url proxy, leaving other entries", () => {
+    const mgr = makeManager();
+    // Simulate an iframe-adopted entry already in the pool.
+    const adopted: ProxyEntry = {
+      el: new Audio(),
+      start: 0,
+      duration: Infinity,
+      driftSamples: 0,
+    };
+    adopted.el.src = "https://example.test/iframe-clip.mp4";
+    mgr.entries.push(adopted);
+
+    mgr.setupFromUrl("https://example.test/a.mp3");
+    expect(mgr.entries).toHaveLength(2);
+
+    mgr.teardownUrlAudio();
+    expect(mgr.entries).toHaveLength(1);
+    expect(mgr.entries[0]).toBe(adopted);
+  });
+
+  it("teardownUrlAudio is safe to call with no audio-src set", () => {
+    const mgr = makeManager();
+    expect(() => mgr.teardownUrlAudio()).not.toThrow();
+    expect(mgr.entries).toHaveLength(0);
+  });
+
+  it("pauses a proxy once the playhead passes the clip end (trimmed clip)", () => {
+    const mgr = makeManager({ owner: "parent", isPaused: false });
+    const el = makeFakeAudio(false); // already playing within the clip
+    mgr.entries.push({ el, start: 0, duration: 5, driftSamples: 0 });
+
+    mgr.mirrorTime(3); // inside [0, 5) — stays playing
+    expect(el.paused).toBe(false);
+
+    mgr.mirrorTime(6); // past the trimmed end — must pause
+    expect(el.paused).toBe(true);
+  });
+
+  it("re-reads the source element's live data-duration so trims bound the proxy", () => {
+    const mgr = makeManager({ owner: "parent", isPaused: false });
+    const source = new Audio();
+    source.setAttribute("data-start", "0");
+    source.setAttribute("data-duration", "30");
+    // jsdom reports isConnected=false unless attached; attach it.
+    document.body.appendChild(source);
+
+    const el = makeFakeAudio(false);
+    mgr.entries.push({ el, start: 0, duration: 30, driftSamples: 0, source });
+
+    mgr.mirrorTime(20); // within 30 → playing
+    expect(el.paused).toBe(false);
+
+    // User trims the clip to 10s; the proxy must pick it up and pause at 20s.
+    source.setAttribute("data-duration", "10");
+    mgr.mirrorTime(20);
+    expect(el.paused).toBe(true);
+    source.remove();
+  });
+
+  it("scrubAll plays in-window proxies at the playhead and pauses out-of-window ones", () => {
+    const mgr = makeManager({ owner: "parent" });
+    const inWin = makeFakeAudio(true); // currently paused — scrub should start it
+    const outWin = makeFakeAudio(false); // currently playing, but outside its window
+    mgr.entries.push({ el: inWin, start: 0, duration: 5, driftSamples: 0 });
+    mgr.entries.push({ el: outWin, start: 10, duration: 5, driftSamples: 0 });
+
+    mgr.scrubAll(2); // playhead at 2s
+
+    // in-window proxy: positioned at rel time and AUDIBLE (the point of scrub-audio)
+    expect(inWin.currentTime).toBe(2);
+    expect(inWin.paused).toBe(false);
+    // out-of-window proxy: paused, not blipped
+    expect(outWin.paused).toBe(true);
+  });
+
+  it("does not duplicate or hijack a clip the composition already owns", () => {
+    const mgr = makeManager();
+    // The composition already adopted a clip with this URL.
+    const adopted: ProxyEntry = {
+      el: new Audio(),
+      start: 0,
+      duration: Infinity,
+      driftSamples: 0,
+    };
+    adopted.el.src = "https://example.test/shared.mp3";
+    mgr.entries.push(adopted);
+
+    // Pointing audio-src at the same URL must not create a second proxy...
+    mgr.setupFromUrl("https://example.test/shared.mp3");
+    expect(mgr.entries).toHaveLength(1);
+    expect(mgr.entries[0]).toBe(adopted);
+
+    // ...and removing audio-src must not tear down the composition's own clip
+    // (teardown targets the tracked proxy by reference, not by URL match).
+    mgr.teardownUrlAudio();
+    expect(mgr.entries).toHaveLength(1);
+    expect(mgr.entries[0]).toBe(adopted);
+  });
+});
+
+describe("ParentMediaManager across documents", () => {
+  afterEach(() => document.body.replaceChildren());
+
+  it("drops the previous document's proxies on reset and keeps the audio-src one", () => {
+    const mgr = makeManager();
+    mgr.setupFromUrl("https://example.test/narration.mp3");
+    const track = document.createElement("audio");
+    track.setAttribute("src", "https://example.test/old-film.mp3");
+    track.setAttribute("data-start", "0");
+    track.preload = "auto";
+    document.body.appendChild(track);
+    mgr.setupFromIframe(document);
+    expect(mgr.entries).toHaveLength(2);
+    const oldProxy = mgr.entries[1].el;
+
+    mgr.resetForIframeLoad();
+
+    expect(mgr.entries.map((m) => m.el.src)).toEqual(["https://example.test/narration.mp3"]);
+    expect(oldProxy.getAttribute("src")).toBe("");
+  });
+
+  it("keeps the audio-src track after a reset when the old document shared its URL", () => {
+    const mgr = makeManager();
+    const track = document.createElement("audio");
+    track.setAttribute("src", "https://example.test/narration.mp3");
+    track.setAttribute("data-start", "2");
+    track.setAttribute("data-duration", "3");
+    track.preload = "auto";
+    document.body.appendChild(track);
+    mgr.setupFromIframe(document);
+    mgr.setupFromUrl("https://example.test/narration.mp3");
+    expect(mgr.entries).toHaveLength(1);
+
+    mgr.resetForIframeLoad();
+
+    expect(mgr.entries.map((m) => [m.el.src, m.start, m.duration])).toEqual([
+      ["https://example.test/narration.mp3", 0, Infinity],
+    ]);
+  });
+});
+
+describe("ParentMediaManager following its clips", () => {
+  afterEach(() => document.body.replaceChildren());
+  const flushObserver = () => new Promise((resolveFlush) => setTimeout(resolveFlush, 0));
+
+  function adoptedClip(mgr: ParentMediaManager, src: string): HTMLVideoElement {
+    const clip = document.createElement("video");
+    clip.setAttribute("src", src);
+    clip.setAttribute("data-start", "0");
+    clip.preload = "auto";
+    document.body.appendChild(clip);
+    mgr.setupFromIframe(document);
+    return clip;
+  }
+
+  const copy = "https://example.test/clip.mov?hf-proxy=h264";
+
+  it("drops a clip's proxy when the runtime stops preloading the clip, and adopts it again when due", async () => {
+    const mgr = makeManager();
+    const clip = adoptedClip(mgr, "https://example.test/clip.mp4");
+    const proxy = mgr.entries[0].el;
+
+    clip.preload = "none";
+    await flushObserver();
+    expect(mgr.entries).toHaveLength(0);
+    expect(proxy.getAttribute("src")).toBe("");
+
+    clip.preload = "auto";
+    await flushObserver();
+    expect(mgr.entries.map((m) => m.el.src)).toEqual(["https://example.test/clip.mp4"]);
+  });
+
+  it("keeps a re-pointed clip's proxy on its file while the composition owns playback", async () => {
+    const mgr = makeManager();
+    const clip = adoptedClip(mgr, "https://example.test/clip.mov");
+    clip.setAttribute("src", copy);
+    await flushObserver();
+
+    expect(mgr.entries.map((m) => m.el.src)).toEqual(["https://example.test/clip.mov"]);
+  });
+
+  it("re-points each proxy to its clip's current src when the parent takes over playback", async () => {
+    const mgr = makeManager();
+    const clip = adoptedClip(mgr, "https://example.test/clip.mov");
+    clip.setAttribute("src", copy);
+    await flushObserver();
+
+    mgr.promoteToParentProxy(document);
+
+    expect(mgr.entries.map((m) => m.el.src)).toEqual([copy]);
+  });
+
+  it("follows a re-pointed clip at once while the parent owns playback", async () => {
+    const mgr = makeManager();
+    const clip = adoptedClip(mgr, "https://example.test/clip.mov");
+    mgr.promoteToParentProxy(document);
+    clip.setAttribute("src", copy);
+    await flushObserver();
+
+    expect(mgr.entries.map((m) => m.el.src)).toEqual([copy]);
+  });
+
+  it("keeps one proxy per file when a clip is re-pointed at another clip's file", async () => {
+    const mgr = makeManager();
+    adoptedClip(mgr, "https://example.test/a.mov");
+    const b = adoptedClip(mgr, "https://example.test/b.mov");
+    mgr.promoteToParentProxy(document);
+    b.setAttribute("src", "https://example.test/a.mov");
+    await flushObserver();
+
+    expect(mgr.entries.map((m) => m.el.src)).toEqual(["https://example.test/a.mov"]);
+  });
+
+  it("keeps one proxy per file when the parent takes over after such a re-point", async () => {
+    const mgr = makeManager();
+    adoptedClip(mgr, "https://example.test/a.mov");
+    const b = adoptedClip(mgr, "https://example.test/b.mov");
+    b.setAttribute("src", "https://example.test/a.mov");
+    await flushObserver();
+
+    mgr.promoteToParentProxy(document);
+
+    expect(mgr.entries.map((m) => m.el.src)).toEqual(["https://example.test/a.mov"]);
+  });
+
+  const files = (mgr: ParentMediaManager) => mgr.entries.map((m) => m.el.src).sort();
+
+  it("keeps both proxies when two clips swap files while the parent owns playback", async () => {
+    const mgr = makeManager();
+    const a = adoptedClip(mgr, "https://example.test/a.mov");
+    const b = adoptedClip(mgr, "https://example.test/b.mov");
+    mgr.promoteToParentProxy(document);
+    a.setAttribute("src", "https://example.test/b.mov");
+    b.setAttribute("src", "https://example.test/a.mov");
+    await flushObserver();
+
+    expect(files(mgr)).toEqual(["https://example.test/a.mov", "https://example.test/b.mov"]);
+  });
+
+  it("keeps both proxies when two clips swap or chain files before the parent takes over", async () => {
+    const mgr = makeManager();
+    const a = adoptedClip(mgr, "https://example.test/a.mov");
+    const b = adoptedClip(mgr, "https://example.test/b.mov");
+    a.setAttribute("src", "https://example.test/b.mov");
+    b.setAttribute("src", "https://example.test/c.mov");
+    await flushObserver();
+
+    mgr.promoteToParentProxy(document);
+
+    expect(files(mgr)).toEqual(["https://example.test/b.mov", "https://example.test/c.mov"]);
+  });
+
+  it("keeps the proxy of a clip when another clip on the same file leaves", async () => {
+    const mgr = makeManager();
+    adoptedClip(mgr, "https://example.test/a.mov");
+    const twin = adoptedClip(mgr, "https://example.test/a.mov");
+    twin.remove();
+    await flushObserver();
+
+    expect(files(mgr)).toEqual(["https://example.test/a.mov"]);
+  });
+
+  it("gives a clip that replaces another on the same file its own proxy", async () => {
+    const mgr = makeManager();
+    const old = adoptedClip(mgr, "https://example.test/a.mov");
+    const replacement = document.createElement("video");
+    replacement.setAttribute("src", "https://example.test/a.mov");
+    replacement.setAttribute("data-start", "0");
+    replacement.preload = "auto";
+    document.body.replaceChild(replacement, old);
+    await flushObserver();
+
+    expect(mgr.entries.map((m) => m.source)).toEqual([replacement]);
+  });
+
+  it("drops the proxy of a re-pointed clip when the clip leaves", async () => {
+    const mgr = makeManager();
+    const clip = adoptedClip(mgr, "https://example.test/clip.mov");
+    clip.setAttribute("src", copy);
+    await flushObserver();
+
+    clip.remove();
+    await flushObserver();
+
+    expect(mgr.entries).toHaveLength(0);
+  });
+});
+
+describe("ParentMediaManager clip window", () => {
+  it("plays a proxy inside its clip window and pauses it at the clip end instant", () => {
+    const mgr = makeManager({ isPaused: false, owner: "parent" });
+    const el = makeFakeAudio(false);
+    mgr.entries.push({ el, start: 1, duration: 2, driftSamples: 0 });
+
+    mgr.mirrorTime(2.999);
+    expect(el.paused).toBe(false);
+    mgr.mirrorTime(3);
+    expect(el.paused).toBe(true);
+  });
+});

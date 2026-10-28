@@ -1,0 +1,94 @@
+import { failCommand } from "../utils/commandResult.js";
+import { defineCommand } from "citty";
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { resolve, join, dirname } from "node:path";
+import {
+  analyzeMusicFromSignal,
+  audioRelPathForSrc,
+  findMusicAudioSrc,
+  serializeBeats,
+  type MusicBeatAnalysis,
+} from "@hyperframes/core/beats";
+import type { Example } from "./_examples.js";
+import { resolveProject, type ProjectDir } from "../utils/project.js";
+import type { AudioSignal } from "@hyperframes/core/audio-analysis";
+import { decodeAudio } from "../audio/analysis/decode.js";
+import { c } from "../ui/colors.js";
+
+export const examples: Example[] = [
+  ["Generate the beat file for the current project", "hyperframes beats"],
+  ["Generate for a specific directory", "hyperframes beats ./my-video"],
+];
+
+function fail(message: string): never {
+  console.error(c.error(message));
+  failCommand();
+}
+
+/** Locate the music track + its on-disk audio, or fail with a clear message. */
+function resolveMusicTarget(project: ProjectDir): { rel: string; audioPath: string } {
+  const src = findMusicAudioSrc(readFileSync(project.indexPath, "utf-8"));
+  if (!src) {
+    fail(
+      'No music track found. Add data-timeline-role="music" to the <audio> element, or to a ' +
+        '<video data-has-audio="true"> whose own sound is the music ' +
+        "(or give it an id like music/bgm/soundtrack).",
+    );
+  }
+  const rel = audioRelPathForSrc(src); // same derivation the Studio uses
+  if (!rel) fail(`Cannot derive a beat-file path for music src: ${src}`);
+  const audioPath = resolve(project.dir, rel);
+  if (!existsSync(audioPath)) fail(`Audio file not found: ${rel}`);
+  return { rel, audioPath };
+}
+
+async function decode(audioPath: string): Promise<AudioSignal> {
+  try {
+    const decoded = await decodeAudio(audioPath);
+    if (decoded) return decoded.signal;
+  } catch (err) {
+    fail(`Beat detection failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  fail(`Beat detection failed: ${audioPath} has no audio stream`);
+}
+
+function report(file: string, result: MusicBeatAnalysis, json: boolean): void {
+  if (json) {
+    console.log(
+      JSON.stringify({ ok: true, file, count: result.beatTimes.length, bpm: result.bpm }, null, 2),
+    );
+    return;
+  }
+  console.log(
+    c.success(
+      `✓ Wrote ${result.beatTimes.length} beats → ${file} (bpm ${result.bpm ?? "?"}, ${result.bpmConfidence})`,
+    ),
+  );
+}
+
+export default defineCommand({
+  meta: {
+    name: "beats",
+    description: "Detect beats in the music track and write beats/<audio>.json",
+  },
+  args: {
+    dir: { type: "positional", description: "Project directory", required: false },
+    json: { type: "boolean", description: "Output result as JSON", default: false },
+  },
+  async run({ args }) {
+    const project = resolveProject(args.dir);
+    const { rel, audioPath } = resolveMusicTarget(project);
+    if (!args.json) console.log(c.dim(`Analyzing ${rel}…`));
+
+    const result = await analyzeMusicFromSignal(await decode(audioPath));
+    // The Studio ignores a 0-beat file (treats it as a stale seed), so don't write one.
+    if (result.beatTimes.length === 0) {
+      fail(`No beats detected in ${rel} — nothing written. (Track may be silent/ambient.)`);
+    }
+
+    const outPath = join(project.dir, "beats", `${rel}.json`);
+    mkdirSync(dirname(outPath), { recursive: true });
+    writeFileSync(outPath, serializeBeats(result.beatTimes, result.beatStrengths, rel));
+    report(`beats/${rel}.json`, result, Boolean(args.json));
+  },
+});

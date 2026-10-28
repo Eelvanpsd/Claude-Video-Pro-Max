@@ -1,0 +1,34 @@
+21 Keys, Opened (二十一键) — Exploded Teardown (Lemo-Opuscar) · LemoLab × Claude Opus 5.5
+
+No AI-generated images, no stock footage. Every surface is rendered in code from the files below.
+
+HARDWARE DATA (geometry, positions, counts, specifications)
+- Corne keyboard (crkbd) by foostan — https://github.com/foostan/crkbd, commit 63366fb7f51cf2a796462fdd90527e99dd126055
+  Licence: Creative Commons Attribution 4.0 (LICENSE_CC) / MIT (LICENSE_MIT), © foostan.
+  Files: pcbs/corne-cherry/hotswap/corne-cherry.kicad_pcb (rev 4.1.0); pcbs/corne-cherry/hotswap/jlcpcb/production_files/BOM-corne-cherry.csv;
+  plates/3x6/pcb/plate-top-cherrymx.kicad_pcb; cases/3x6/left.step; docs/corne-cherry/v4/buildguide_en.md; README.md.
+  Changes: left half only; panel tabs and the project logo dropped; coordinates unified; the case STEP triangulated;
+  the board outline taken from the plate outline inset 0.4 mm. Credited on the end card ("CAD：foostan/crkbd · CC BY 4.0").
+- Component facts: RP2040 datasheet (Raspberry Pi Ltd), W25Q128JV datasheet (Winbond) — quoted in FACTS.md only;
+  no logo or package marking is drawn.
+
+LIGHT
+- photo_studio_loft_hall_2k.hdr — Poly Haven, CC0 — https://polyhaven.com/a/photo_studio_loft_hall (library core/assets/polyhaven)
+
+FONTS (SIL Open Font License 1.1, licence texts in fonts/; Noto Sans SC subset with the Google Fonts API &text=)
+- Noto Sans SC — Google / Adobe (names, Chinese subtitle line, title)
+- JetBrains Mono — JetBrains (specs, numbers, dimensions)
+- Inter — The Inter Project Authors (English subtitle line, English title)
+
+MUSIC (original score, demo/mix.py; samples via the library's core/audio/sampler.py)
+- Samples (CC0): FreePats project (freepats.zenvoid.org), VS Chamber Orchestra: Community Edition (Versilian Studios),
+  Versilian Community Sample Library (Versilian Studios). Instruments: marimba, bowed vibraphone, glass, glockenspiel,
+  electric bass, hi-hat, claves. Kick, foley and room tone are synthesised in code.
+
+VOICE
+- Kokoro-82M (hexgrad), voice am_michael, Apache License 2.0; run locally via kokoro-onnx (MIT) through core/tts/tts.py.
+  Speech check: faster-whisper small.en (MIT; OpenAI Whisper weights, MIT).
+
+SOFTWARE
+- three.js r170 (MIT); the library's core/three/post.js, core/lib.js, core/render/*, core/audio/*.
+- occt-import-js 0.0.23 (LGPL-2.1) — used offline by tools/step2mesh.mjs to triangulate the STEP; not shipped.

@@ -1,0 +1,72 @@
+[
+ {
+  "id": "l1",
+  "t0": 2,
+  "t1": 4.666,
+  "zh": "地图上，这里还是一片海。",
+  "en": "On the map, this is still a sea."
+ },
+ {
+  "id": "l2",
+  "t0": 7.8,
+  "t1": 10.69,
+  "zh": "1977 年，它确实是。",
+  "en": "In 1977, it was."
+ },
+ {
+  "id": "l3",
+  "t0": 10.73,
+  "t1": 13.59,
+  "zh": "后来，河水被引去种棉花。",
+  "en": "Then its rivers went to the cotton fields."
+ },
+ {
+  "id": "l4",
+  "t0": 13.63,
+  "t1": 16.86,
+  "zh": "到 2014 年，东边的湖盆干涸了。",
+  "en": "By 2014, the eastern basin had dried."
+ },
+ {
+  "id": "l5",
+  "t0": 16.9,
+  "t1": 19.03,
+  "zh": "这里曾是渔港。",
+  "en": "This was a fishing port."
+ },
+ {
+  "id": "l6",
+  "t0": 19.07,
+  "t1": 22.586,
+  "zh": "如今，海在 95 公里之外。",
+  "en": "Today, the sea is 95 km away."
+ },
+ {
+  "id": "l7",
+  "t0": 23.67,
+  "t1": 26.279,
+  "zh": "可在北边，修起了一道坝。",
+  "en": "But up north, a dam went in."
+ },
+ {
+  "id": "l8",
+  "t0": 26.65,
+  "t1": 28.995,
+  "zh": "水回来了。",
+  "en": "And the water came back."
+ },
+ {
+  "id": "l9",
+  "t0": 29.35,
+  "t1": 32.21,
+  "zh": "海不是自己回来的。",
+  "en": "The sea did not come back on its own."
+ },
+ {
+  "id": "l10",
+  "t0": 32.25,
+  "t1": 34.15,
+  "zh": "是有人把它留住了。",
+  "en": "Someone kept it."
+ }
+]

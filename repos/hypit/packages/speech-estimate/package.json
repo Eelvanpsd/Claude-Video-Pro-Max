@@ -1,0 +1,22 @@
+{
+  "name": "@hypit/speech-estimate",
+  "version": "0.1.1",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "dependencies": {
+    "cmu-pronouncing-dictionary": "3.0.0"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.0"
+  },
+  "devDependencies": {
+    "@hypit/hypit": "workspace:*",
+    "@hypit/recipe": "workspace:*",
+    "@hypit/text": "workspace:*"
+  }
+}

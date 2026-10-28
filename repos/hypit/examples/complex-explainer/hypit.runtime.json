@@ -1,0 +1,24 @@
+{
+  "format": "hypit.runtime-local@1",
+  "dataRoot": ".hypit/execution",
+  "endpoints": {
+    "media.local": {
+      "use": "@hypit/media-local",
+      "config": {
+        "defaultConcurrency": 2
+      }
+    },
+    "html.local": {
+      "use": "@hypit/provider-html-local",
+      "config": {
+        "workers": 8,
+        "defaultConcurrency": 1
+      }
+    }
+  },
+  "bindings": {
+    "@hypit/html-program@1#rasterize-visual": "html.local",
+    "@hypit/media-operations@1#render-timeline-audio": "media.local",
+    "@hypit/media-operations@1#mux-program-media": "media.local"
+  }
+}

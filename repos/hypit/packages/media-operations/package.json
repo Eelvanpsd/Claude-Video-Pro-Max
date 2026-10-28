@@ -1,0 +1,40 @@
+{
+  "name": "@hypit/media-operations",
+  "version": "0.2.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1"
+  },
+  "devDependencies": {
+    "@hypit/blob": "workspace:*",
+    "@hypit/producer": "workspace:*",
+    "@hypit/composition": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/media": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/run": "workspace:*",
+    "@hypit/recipe": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/timeline": "workspace:*",
+    "@hypit/temporal": "workspace:*",
+    "@hypit/hypit": "workspace:*"
+  },
+  "dependencies": {
+    "@hypit/composition": "workspace:^0.1.0",
+    "@hypit/media": "workspace:^0.1.0",
+    "@hypit/temporal": "workspace:^0.1.0",
+    "@hypit/timeline": "workspace:^0.1.0"
+  }
+}

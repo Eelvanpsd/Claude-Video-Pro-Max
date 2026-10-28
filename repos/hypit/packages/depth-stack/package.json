@@ -1,0 +1,50 @@
+{
+  "name": "@hypit/depth-stack",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./studio": "./src/studio.ts"
+  },
+  "files": [
+    "dist",
+    "preview",
+    "README.md"
+  ],
+  "hypit": {
+    "activation": "./src/activation.ts"
+  },
+  "dependencies": {
+    "@hypit/composition": "workspace:^0.1.0",
+    "@hypit/media": "workspace:^0.1.0",
+    "@hypit/spatial": "workspace:^0.1.0",
+    "@hypit/temporal": "workspace:^0.1.0",
+    "@hypit/timeline": "workspace:^0.1.0",
+    "@hypit/visual-track": "workspace:^0.2.0"
+  },
+  "peerDependencies": {
+    "@hypit/hypit": "workspace:^0.3.1",
+    "@hypit/studio-companion": "workspace:^0.1.1"
+  },
+  "devDependencies": {
+    "@hypit/blob": "workspace:*",
+    "@hypit/producer": "workspace:*",
+    "@hypit/composition": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/media": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/timeline": "workspace:*",
+    "@hypit/spatial": "workspace:*",
+    "@hypit/recipe": "workspace:*",
+    "@hypit/temporal": "workspace:*",
+    "@hypit/text": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/kernel": "workspace:*",
+    "@hypit/hypit": "workspace:*",
+    "@hypit/media-operations": "workspace:*",
+    "@hypit/studio-companion": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,176 @@
+---
+title: "@hyperframes/player"
+description: "Embeddable web component for playing HyperFrames compositions in any web page."
+---
+
+The player package provides a `<hyperframes-player>` custom element that embeds a
+HyperFrames composition in plain HTML or a framework application.
+
+```bash
+npm install @hyperframes/player
+```
+
+Use Player when an application needs to play and seek an HTML composition. Use
+[Studio](/packages/studio) to edit it or the [CLI](/packages/cli) and
+[Producer](/packages/producer) to render a video file.
+
+## Embed a composition
+
+### Via CDN
+
+```html title="index.html"
+<script type="module" src="https://cdn.jsdelivr.net/npm/@hyperframes/player"></script>
+
+<hyperframes-player
+  src="./my-composition/index.html"
+  controls
+  style="width: 100%; max-width: 800px; aspect-ratio: 16/9"
+></hyperframes-player>
+```
+
+With a package manager:
+
+```js
+import "@hyperframes/player";
+```
+
+```html title="index.html"
+<hyperframes-player
+  src="/compositions/intro.html"
+  controls
+></hyperframes-player>
+```
+
+Set `autoplay muted` only when playback should start without a user gesture.
+
+## Attributes
+
+| Attribute       | Type    | Default | Description                                               |
+| --------------- | ------- | ------- | --------------------------------------------------------- |
+| `src`           | string  | —       | URL or relative path to composition HTML, or to a video file with `type` |
+| `type`          | string  | —       | A `video/...` type (e.g. `video/mp4`) plays `src` as a video file |
+| `srcdoc`        | string  | —       | Composition HTML already available as a string            |
+| `width`         | number  | 1920    | Native composition width used for aspect ratio            |
+| `height`        | number  | 1080    | Native composition height used for aspect ratio           |
+| `controls`      | boolean | false   | Show playback, scrub, speed, time, and volume controls    |
+| `autoplay`      | boolean | false   | Start when the composition is ready                       |
+| `loop`          | boolean | false   | Restart at the end                                        |
+| `muted`         | boolean | false   | Mute audio                                                |
+| `volume`        | number  | 1       | Playback volume from 0 to 1                               |
+| `poster`        | string  | —       | Image URL to show before first play                       |
+| `playback-rate` | number  | 1       | Playback speed multiplier                                 |
+| `audio-src`     | string  | —       | Optional primary audio URL to preload in the parent frame |
+| `audio-locked`  | boolean | false   | Force muted playback and hide volume controls             |
+| `assets-loading-ui` | `player` or `none` | `player` | `none` hides the loading-assets card; asset events still fire |
+| `low-power-idle` | boolean | false | While paused, check in once a second, not every 80 ms (many-player pages) |
+| `disable-click-to-play` | boolean | false | A click on the player no longer plays or pauses, so the page can handle it |
+| `no-load-timeout` | boolean | false | A slow load never fails at 8 s, so the page owns the deadline; script and runtime errors still fail at once |
+| `range-start` | number | — | Film second where playback starts, loops back to and parks when paused (`rangeStart`) |
+| `range-end` | number | — | Film second the range ends before: it stops or loops on the frame before it (`rangeEnd`) |
+
+`range-start` and `range-end` play the moment [start, end) of the film. The player parks on `range-start` at `ready`, and again when a paused playhead falls outside a new range; `play()` from outside the range starts there. At the end it holds the last frame before `range-end` and fires `ended`, or wraps to `range-start` with `loop`. `currentTime` at `ended` is then inside that frame, not `range-end` itself, so listen for `ended` rather than comparing times. A current runtime stops on that frame itself; video and `__timelines` players stop one clock tick early, predicted from the smaller of their last two steps, and a video in a background tab checks on its own `timeupdate`; an older runtime stops when the player sees its time pass the end. `currentTime` and `duration` stay in film time. A range past the film is cut to its end and an empty or negative one is ignored; both fire `rangeclamped`.
+
+Player also accepts `shader-capture-scale` and `shader-loading` for previewing
+projects that use shader transitions. These are preview controls, not composition
+authoring attributes.
+
+With a `video/...` `type`, `src` plays in a `<video>` behind the same playback API and
+events. `scenes`, `setRuntimeData()`, `setColorGrading()`, `iframeElement` and `stopMedia()`
+are composition-only, and `srcdoc` wins over a video `src`, as it does in an iframe.
+
+## JavaScript API
+
+The main API follows familiar media-player behavior:
+
+```js
+const player = document.querySelector("hyperframes-player");
+
+player.play();
+player.pause();
+player.seek(2.5);
+
+player.currentTime = 5;
+player.playbackRate = 1.5;
+player.muted = true;
+
+console.log(player.duration, player.paused, player.ready);
+console.log(player.compositionWidth, player.compositionHeight);
+```
+
+## Events
+
+```js
+const player = document.querySelector("hyperframes-player");
+
+player.addEventListener("ready", (event) => {
+  console.log("Duration:", event.detail.duration);
+});
+
+player.addEventListener("timeupdate", (event) => {
+  console.log("Time:", event.detail.currentTime);
+});
+```
+
+| Event          | Detail            | Description                                                  |
+| -------------- | ----------------- | ------------------------------------------------------------ |
+| `ready`        | `{ duration, compositionWidth, compositionHeight }` | Composition loaded and timeline discovered |
+| `durationchange` | `{ duration }`  | The duration changed after `ready`                           |
+| `resize`       | `{ compositionWidth, compositionHeight }` | The composition's size changed           |
+| `timeupdate`   | `{ currentTime }` | Playback position changed, approximately 10 times per second |
+| `play`         | —                 | Playback started                                             |
+| `pause`        | —                 | Playback paused                                              |
+| `ended`        | —                 | Playback reached end                                         |
+| `rangeclamped` | `{ rangeStart, rangeEnd, duration }` | A range past the film was cut to its end, or an empty one ignored (nulls) |
+| `ratechange`   | —                 | Playback rate changed                                        |
+| `volumechange` | —                 | Volume or muted state changed                                |
+| `scenes`       | `{ scenes }`      | The runtime reported its scene list                          |
+| `error`        | `{ message }`     | Load or runtime error; a video adds its `MediaError` `code`  |
+| `playbackerror` | `{ source, error }` | The browser blocked playback, for example unmuted autoplay |
+
+## Advanced: iframe access
+
+The composition runs inside an `<iframe>` in the player's Shadow DOM. For most
+uses, the JavaScript API and events above are enough. The `iframeElement` getter
+exists for same-origin tools that must inspect the composition DOM or connect a
+custom editing surface:
+
+```js
+const player = document.querySelector("hyperframes-player");
+const iframe = player.iframeElement;
+
+// Reach into the composition's DOM
+iframe.contentDocument.querySelectorAll("[data-composition-id]");
+
+// Read the runtime (GSAP timelines, element registry, etc.)
+iframe.contentWindow.__timelines;
+```
+
+Direct DOM access works only when the composition and the host page are
+same-origin. Cross-origin embeds must use the Player API and events.
+
+[`@hyperframes/studio`](/packages/studio) exports `resolveIframe` for consumers
+that need to pass the inner iframe to Studio's timeline hooks:
+
+```ts
+import { resolveIframe, useTimelinePlayer } from "@hyperframes/studio";
+
+const { iframeRef } = useTimelinePlayer();
+const player = document.createElement("hyperframes-player");
+player.setAttribute("src", src);
+container.appendChild(player);
+
+// Forward the inner iframe so useTimelinePlayer can drive play/pause/seek.
+iframeRef.current = resolveIframe(player);
+```
+
+## How it works
+
+The composition runs in a sandboxed iframe inside the player's Shadow DOM. This
+isolates its styles, scales it to the player container, and lets the player
+communicate with the HyperFrames runtime through `postMessage`.
+
+## Related topics
+
+- [Edit the same composition with the SDK](/sdk/quickstart)
+- [Use the complete Studio interface](/studio)
+- [Understand the composition contract](/reference/html-schema)

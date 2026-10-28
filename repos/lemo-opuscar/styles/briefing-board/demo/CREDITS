@@ -1,0 +1,66 @@
+Engineering Briefing Board — "The Ship Decides" (library demo)
+Every third-party asset in the film, with its source and licence.
+
+PHOTOGRAPHS (Wikimedia Commons; cut out at the photo's own resolution with BiRefNet, graded, and modified as noted)
+- Container ship from above (kit object "ship")
+  "Containerschiffe auf der Elbe zwischen Wedel und Hamburg" by BAW_Bundesanstalt für Wasserbau,
+  CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+  https://commons.wikimedia.org/wiki/File:Containerschiffe_auf_der_Elbe_zwischen_Wedel_und_Hamburg_(55103130595).jpg
+  Changes: rotated, cropped to the hull, background and shadow removed, colour graded.
+- Container ship, side view (kit objects "ship_side", "print_ship")
+  "Ship Harrison (1)" by Tvabutzku1234, CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+  https://commons.wikimedia.org/wiki/File:Ship_Harrison_(1).jpg
+  Changes: the ship's name, hull markings and the container operators' logos wiped with a median filter so that
+  no lettering is readable; cut out, colour graded; also shown uncut (lettering wiped) as a pinned print.
+- Beam bridge (kit object "beam")
+  "Kiiminkiriver Bridge 20100705" by Estormiz, public domain (PD-self)
+  https://commons.wikimedia.org/wiki/File:Kiiminkiriver_Bridge_20100705.JPG
+  Changes: cut out, desaturated.
+- Arch bridge (kit objects "arch", "print_arch")
+  "Fort Henry Bridge, Wheeling, West Virginia" by Carol M. Highsmith, Library of Congress, public domain (PD-Highsmith)
+  https://commons.wikimedia.org/wiki/File:Fort_Henry_Bridge)_Wheeling,_West_Virginia_LCCN2015632042.tif
+  Changes: cut out; a road sign under the arch removed; hangers lost against the hills continued down to the deck
+  at their measured positions.
+- Cable-stayed bridge (kit objects "cable", "print_cable")
+  "East Huntington bridge, Huntington, West Virginia" by Carol M. Highsmith, Library of Congress, public domain (PD-Highsmith)
+  https://commons.wikimedia.org/wiki/File:East_Huntington_bridge,_Huntington,_West_Virginia_LCCN2015631874.tif
+  Changes: cut out; a water-level gauge and a road sign painted out; the stay cables measured in the photo and
+  redrawn as clean lines; the single pylon with its main-span fan mirrored to make a two-pylon main span
+  (a composite that represents the bridge type, not a real bridge).
+- Suspension bridge (kit objects "suspension", "print_susp")
+  "Bear mountain bridge west II" by Russ, CC BY 2.0 (https://creativecommons.org/licenses/by/2.0/)
+  https://commons.wikimedia.org/wiki/File:Bear_mountain_bridge_west_II_(14104379089).jpg
+  Changes: cut out, desaturated; the main span between the towers stretched horizontally (×1.7) so the
+  towers keep their shape at a two-kilometre span; the main cables (fitted parabolas) and the hangers
+  (measured positions) redrawn as clean lines (represents the bridge type, not a real bridge).
+The four "print_*" objects are the same photographs, uncropped, on a white photo-paper border, pinned at the
+top right of the wall. No real bridge, ship, company or place is named or readable in the film. The licence
+trail of every photo looked at is in sources/candidates/candidates.json; kit/tools/fetch_sources.py downloads
+the six used ones from Commons.
+
+The whiteboard, its light and ghosts, the frame and tray, magnets, tags, the steel ruler, the cards and sticky
+notes, the clearance sketch, the rubber stamp and all marker ink are drawn in code.
+
+FONTS (SIL Open Font License 1.1; texts in kit/fonts/; all from Google Fonts, fetched by kit/tools/fetch_fonts.py)
+- LXGW Marker Gothic, The LXGW Marker Gothic Project Authors (subset)
+- Noto Sans SC, Adobe / Google (subset)
+- Archivo, Omnibus-Type
+- IBM Plex Mono, IBM
+
+VOICE
+- Narration: Kokoro-82M text-to-speech (Apache-2.0), voice af_heart, run offline with kokoro-onnx (MIT).
+- Speech check: faster-whisper (MIT).
+
+MUSIC AND SOUND
+- Original score and procedural sound design written for this film (audio/mix.py).
+- Drums: "MuldjordKit" by Lars Muldjord (drumgizmo.org), FreePats version, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+- Samples (CC0): FreePats project (freepats.zenvoid.org), VS Chamber Orchestra: Community Edition (Versilian Studios), Versilian Community Sample Library (Versilian Studios)
+  (electric bass, contrabass, claves, hi-hat, toms, shaker, crash, suspended cymbal, gran cassa, timpani,
+  trombone, tuba, horn, tubular bells, glockenspiel, vibraphone)
+
+TOOLS
+- Segmentation: BiRefNet-general (MIT; ONNX export from https://github.com/danielgatis/rembg/releases), run through onnxruntime (MIT).
+- Rendering: headless Chromium (Playwright); ffmpeg.
+
+FACTS
+- Every number on screen and in the voice-over, including the source card and the two sticky-note sums, is sourced in FACTS.md.

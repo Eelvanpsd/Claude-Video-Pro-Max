@@ -1,0 +1,167 @@
+import { EventEmitter } from "node:events";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+type WatchCallback = (eventType: string, filename: string | Buffer | null) => void;
+
+const mockWatcher = new EventEmitter() as EventEmitter & { close: () => void };
+mockWatcher.close = vi.fn();
+
+const fakeDirs = { children: [] as string[], unwatchable: "" };
+
+vi.mock("node:fs", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...original,
+    watch: vi.fn((path: string, _options: unknown, onChange: WatchCallback) => {
+      if (fakeDirs.unwatchable && path.endsWith(fakeDirs.unwatchable)) {
+        throw Object.assign(new Error("ENOSPC"), { code: "ENOSPC" });
+      }
+      mockWatcher.on("change", onChange);
+      return mockWatcher;
+    }),
+    readdirSync: vi.fn((path: string) =>
+      path === "/fake/project/dir"
+        ? fakeDirs.children.map((name) => ({ name, isDirectory: () => true }))
+        : [],
+    ),
+  };
+});
+
+const { shouldWatchProjectFile, createProjectWatcher } = await import("./fileWatcher.js");
+const { watch } = await import("node:fs");
+
+describe("shouldWatchProjectFile", () => {
+  it("watches files that can affect the project signature", () => {
+    expect(shouldWatchProjectFile("index.html")).toBe(true);
+    expect(shouldWatchProjectFile("src/scene.tsx")).toBe(true);
+    expect(shouldWatchProjectFile("assets/hero.png")).toBe(true);
+    expect(shouldWatchProjectFile("Dockerfile")).toBe(true);
+  });
+
+  it("skips generated and dependency directories", () => {
+    expect(shouldWatchProjectFile("node_modules/pkg/index.js")).toBe(false);
+    expect(shouldWatchProjectFile("renders/output.mp4")).toBe(false);
+    expect(shouldWatchProjectFile("dist/index.html")).toBe(false);
+    expect(shouldWatchProjectFile(".hyperframes/cache.json")).toBe(false);
+    expect(shouldWatchProjectFile(".transcode-cache/proxy.mp4")).toBe(false);
+    expect(shouldWatchProjectFile(".thumbnails/frame.jpg")).toBe(false);
+    expect(shouldWatchProjectFile(".waveform-cache/peaks.json")).toBe(false);
+  });
+
+  it("skips the temp file of a save in flight, but not a user's own .tmp file", () => {
+    expect(shouldWatchProjectFile("index.html.hf0a1b2c.tmp")).toBe(false);
+    expect(shouldWatchProjectFile("compositions/intro.html.hf0a1b2c.tmp")).toBe(false);
+    expect(shouldWatchProjectFile("foo.12345678.tmp")).toBe(true);
+    expect(shouldWatchProjectFile("notes.tmp")).toBe(true);
+  });
+});
+
+describe("createProjectWatcher", () => {
+  beforeEach(() => {
+    mockWatcher.removeAllListeners();
+    vi.clearAllMocks();
+    fakeDirs.children = [];
+    fakeDirs.unwatchable = "";
+    vi.useRealTimers();
+  });
+
+  it("notifies once for every file changed in one debounce burst", () => {
+    vi.useFakeTimers();
+    const projectWatcher = createProjectWatcher("/fake/project/dir");
+    const listener = vi.fn();
+    projectWatcher.addListener(listener);
+
+    mockWatcher.emit("change", "change", "scene-a.html");
+    mockWatcher.emit("change", "change", "scene-b.html");
+    mockWatcher.emit("change", "change", "scene-a.html");
+    vi.advanceTimersByTime(29);
+    expect(listener).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+
+    expect(listener.mock.calls).toEqual([["scene-a.html"], ["scene-b.html"]]);
+    projectWatcher.close();
+  });
+
+  it.runIf(process.platform === "linux")(
+    "keeps watching the rest of the tree when one subdirectory cannot be watched",
+    () => {
+      fakeDirs.children = ["full", "compositions"];
+      fakeDirs.unwatchable = "full";
+      const projectWatcher = createProjectWatcher("/fake/project/dir");
+
+      expect(vi.mocked(watch).mock.calls.map(([path]) => path)).toContain(
+        "/fake/project/dir/compositions",
+      );
+      projectWatcher.close();
+      expect(mockWatcher.close).toHaveBeenCalled();
+    },
+  );
+
+  it.runIf(process.platform === "linux")("closes every watch it opened, its parent's too", () => {
+    const projectWatcher = createProjectWatcher("/fake/project/dir");
+    const opened = vi.mocked(watch).mock.calls.map(([path]) => path);
+    expect(opened).toContain("/fake/project");
+    projectWatcher.close();
+    expect(mockWatcher.close).toHaveBeenCalledTimes(opened.length);
+  });
+
+  it.runIf(process.platform === "linux")(
+    "keeps reporting project files when its parent cannot be watched",
+    () => {
+      vi.useFakeTimers();
+      fakeDirs.unwatchable = "/fake/project";
+      const projectWatcher = createProjectWatcher("/fake/project/dir");
+      const listener = vi.fn();
+      projectWatcher.addListener(listener);
+      mockWatcher.emit("change", "change", "index.html");
+      vi.advanceTimersByTime(30);
+      expect(listener).toHaveBeenCalledExactlyOnceWith("index.html");
+      projectWatcher.close();
+    },
+  );
+
+  it("degrades to no live reload when the project root cannot be watched", () => {
+    fakeDirs.unwatchable = "/fake/project/dir";
+    let projectWatcher: ReturnType<typeof createProjectWatcher> | null = null;
+    expect(() => {
+      projectWatcher = createProjectWatcher("/fake/project/dir");
+    }).not.toThrow();
+    expect(() => projectWatcher?.close()).not.toThrow();
+  });
+
+  it("flushes at most once per 300 ms while writes keep coming", () => {
+    vi.useFakeTimers();
+    const projectWatcher = createProjectWatcher("/fake/project/dir");
+    const listener = vi.fn();
+    projectWatcher.addListener(listener);
+
+    mockWatcher.emit("change", "change", "a.html");
+    vi.advanceTimersByTime(30);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    mockWatcher.emit("change", "change", "b.html");
+    vi.advanceTimersByTime(100);
+    mockWatcher.emit("change", "change", "c.html");
+    vi.advanceTimersByTime(199);
+    expect(listener).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1);
+    expect(listener.mock.calls.slice(1)).toEqual([["b.html"], ["c.html"]]);
+
+    // A save that lands late in the window waits only for quiet, not a whole window.
+    vi.advanceTimersByTime(290);
+    mockWatcher.emit("change", "change", "d.html");
+    vi.advanceTimersByTime(30);
+    expect(listener).toHaveBeenLastCalledWith("d.html");
+    projectWatcher.close();
+  });
+
+  // Regression: fs.watch can fail asynchronously (e.g. EMFILE from exhausted
+  // OS watch handles) via an 'error' event, not a thrown exception. An
+  // EventEmitter 'error' with no listener crashes the whole process — this
+  // must degrade gracefully instead, per the sibling synchronous-failure path.
+  it("does not crash the process when the underlying watcher emits 'error'", () => {
+    createProjectWatcher("/fake/project/dir");
+    expect(() => mockWatcher.emit("error", new Error("EMFILE"))).not.toThrow();
+    expect(mockWatcher.close).toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,350 @@
+{
+ "r1977": {
+  "collection": "landsat-c2-l1",
+  "platforms": [
+   "landsat-2"
+  ],
+  "bbox": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "plate": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "dlon": 0.0024,
+  "datetime": "1977-07-05/1977-10-10",
+  "target": "1977-09-01",
+  "bands": [
+   "green",
+   "red",
+   "nir08",
+   "nir09"
+  ],
+  "max_cloud": 15,
+  "fill_datetime": "1977-05-01/1977-10-31",
+  "fill_cloud": 30,
+  "resampling": "nearest"
+ },
+ "r1989": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-5",
+   "landsat-4"
+  ],
+  "bbox": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "plate": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "dlon": 0.0024,
+  "datetime": "1989-06-01/1989-10-15",
+  "target": "1989-09-01",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12,
+  "fill_datetime": "1989-05-01/1989-10-31",
+  "fill_cloud": 30,
+  "exclude": [
+   "_161027_19890816",
+   "_161028_19890816",
+   "_161029_19890816",
+   "_161030_19890816"
+  ]
+ },
+ "r2000": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-7"
+  ],
+  "bbox": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "plate": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "dlon": 0.0024,
+  "datetime": "2000-07-05/2000-10-10",
+  "target": "2000-09-01",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12,
+  "fill_datetime": "2000-05-01/2000-10-31",
+  "fill_cloud": 30
+ },
+ "r2009": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-5"
+  ],
+  "bbox": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "plate": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "dlon": 0.0024,
+  "datetime": "2009-07-05/2009-10-10",
+  "target": "2009-09-01",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12,
+  "fill_datetime": "2009-05-01/2009-10-31",
+  "fill_cloud": 30
+ },
+ "r2014": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-8"
+  ],
+  "bbox": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "plate": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "dlon": 0.0024,
+  "datetime": "2014-07-05/2014-10-10",
+  "target": "2014-09-01",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12,
+  "fill_datetime": "2014-05-01/2014-10-31",
+  "fill_cloud": 30
+ },
+ "r2025": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-8",
+   "landsat-9"
+  ],
+  "bbox": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "plate": [
+   55.3,
+   42.9,
+   64.7,
+   47.4
+  ],
+  "dlon": 0.0024,
+  "datetime": "2025-07-05/2025-10-10",
+  "target": "2025-08-19",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12,
+  "fill_datetime": "2025-05-01/2025-10-31",
+  "fill_cloud": 30
+ },
+ "mu2025": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-8",
+   "landsat-9"
+  ],
+  "bbox": [
+   58.05,
+   43.55,
+   59.45,
+   44.75
+  ],
+  "plate": [
+   58.05,
+   43.55,
+   59.45,
+   44.75
+  ],
+  "dlon": 0.00045,
+  "datetime": "2025-07-05/2025-10-10",
+  "target": "2025-08-19",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12
+ },
+ "ko2025": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-8",
+   "landsat-9"
+  ],
+  "bbox": [
+   60.2,
+   45.8,
+   61.6,
+   46.5
+  ],
+  "plate": [
+   60.2,
+   45.8,
+   61.6,
+   46.5
+  ],
+  "dlon": 0.0004,
+  "datetime": "2025-07-05/2025-10-10",
+  "target": "2025-08-19",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12
+ },
+ "la2025": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-8",
+   "landsat-9"
+  ],
+  "bbox": [
+   59.55,
+   44.6,
+   60.65,
+   45.2
+  ],
+  "plate": [
+   59.55,
+   44.6,
+   60.65,
+   45.2
+  ],
+  "dlon": 0.00035,
+  "datetime": "2025-07-05/2025-10-10",
+  "target": "2025-08-19",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12
+ },
+ "ko2001": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-5",
+   "landsat-7"
+  ],
+  "bbox": [
+   60.2,
+   45.8,
+   61.6,
+   46.5
+  ],
+  "plate": [
+   60.2,
+   45.8,
+   61.6,
+   46.5
+  ],
+  "dlon": 0.0004,
+  "datetime": "2001-06-15/2001-09-30",
+  "target": "2001-08-15",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12
+ },
+ "ko2009": {
+  "collection": "landsat-c2-l2",
+  "platforms": [
+   "landsat-5"
+  ],
+  "bbox": [
+   60.2,
+   45.8,
+   61.6,
+   46.5
+  ],
+  "plate": [
+   60.2,
+   45.8,
+   61.6,
+   46.5
+  ],
+  "dlon": 0.0004,
+  "datetime": "2009-07-01/2009-09-30",
+  "target": "2009-08-20",
+  "bands": [
+   "blue",
+   "green",
+   "red",
+   "nir08",
+   "swir16"
+  ],
+  "max_cloud": 12,
+  "items": [
+   "LT05_L2SP_160028_20090909_02_T1",
+   "LT05_L2SP_161028_20090916_02_T1",
+   "LT05_L2SP_160028_20090723_02_T1"
+  ]
+ }
+}

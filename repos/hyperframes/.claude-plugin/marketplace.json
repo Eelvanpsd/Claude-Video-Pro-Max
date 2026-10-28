@@ -1,0 +1,37 @@
+{
+  "name": "hyperframes",
+  "owner": {
+    "name": "HeyGen",
+    "email": "hyperframes@heygen.com",
+    "url": "https://hyperframes.heygen.com"
+  },
+  "plugins": [
+    {
+      "name": "hyperframes",
+      "source": "./",
+      "description": "Recommended: all published HyperFrames skills in one versioned bundle. Create and render videos from HTML; load workflows on demand without installing newer standalone skills.",
+      "homepage": "https://hyperframes.heygen.com",
+      "license": "Apache-2.0"
+    },
+    {
+      "name": "core-skills",
+      "source": "./",
+      "description": "Legacy core-only installation. For release-managed bundled workflows, install hyperframes@hyperframes and then uninstall core-skills@hyperframes.",
+      "homepage": "https://hyperframes.heygen.com",
+      "license": "Apache-2.0",
+      "skills": [
+        "./skills/hyperframes",
+        "./skills/hyperframes-animation",
+        "./skills/hyperframes-audio",
+        "./skills/hyperframes-cli",
+        "./skills/hyperframes-core",
+        "./skills/hyperframes-creative",
+        "./skills/hyperframes-keyframes",
+        "./skills/hyperframes-registry",
+        "./skills/hyperframes-studio",
+        "./skills/media-use"
+      ]
+    }
+  ],
+  "description": "HyperFrames video creation skills, versioned and updated as one plugin."
+}

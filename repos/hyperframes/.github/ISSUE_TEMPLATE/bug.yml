@@ -1,0 +1,79 @@
+name: Bug Report
+description: Report a bug to help us improve
+labels: ["bug", "triage/needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Before filing, please:
+        - Search [existing issues](https://github.com/heygen-com/hyperframes/issues) to avoid duplicates
+        - Make sure the issue reproduces without custom extensions or plugins
+        - Test on the latest version (`npx hyperframes upgrade`)
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-link
+    attributes:
+      label: Minimal reproduction
+      description: |
+        Provide either a public repository URL or a self-contained example with the commands and assets needed to reproduce the issue. Synthetic assets are welcome; do not include credentials or private media.
+
+        For a repository, start with `npx hyperframes init repro --non-interactive --example blank`, make only the changes needed to demonstrate the issue, and share the URL. For an inline example, include the complete minimal HTML/code and any asset-generation commands.
+      placeholder: "Repository URL, or a complete minimal example and setup commands"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Step-by-step instructions using the repository or inline example above.
+      placeholder: |
+        1. Set up the reproduction above
+        2. Run `npx hyperframes render`
+        3. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened. Include error messages or screenshots if applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Run `npx hyperframes doctor` and paste the output here.
+      render: shell
+      placeholder: |
+        ✓ Version          0.x.x (latest)
+        ✓ Node.js          v22.x.x (darwin arm64)
+        ✓ FFmpeg           ffmpeg version 7.x ...
+        ✓ Chrome           bundled: /path/to/chrome
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Any other context, logs, or screenshots.

@@ -1,6 +1,6 @@
 # hyperframes — heygen-com/hyperframes
 
-> Submodule: [`repos/hyperframes`](../../repos/hyperframes) · License: **Apache 2.0** · Verdict: ✅ **Adopt (code allowed with notice)**
+> Source (vendored): [`repos/hyperframes`](../../repos/hyperframes) · License: **Apache 2.0** · Verdict: ✅ **Adopt (code allowed with notice)**
 
 ## What it is
 An open-source framework that turns **HTML + CSS + media + seekable animations into deterministic MP4s**. "Inspired by Remotion", but uses plain HTML with `data-*` timing attributes instead of React. Bun monorepo (`packages/`: `cli`, `core`, `engine`, `producer`, `studio`, `player`, `shader-transitions`, `lint`, `inspector`, `aws-lambda`, …). Headless Chrome (Puppeteer) seeks each frame; FFmpeg encodes. Animation adapters: GSAP (default), CSS, WAAPI, Lottie, Three.js, Anime.js, TypeGPU. Ships 21 agent skills (`skills/`) and a large block/component registry (`registry/`).

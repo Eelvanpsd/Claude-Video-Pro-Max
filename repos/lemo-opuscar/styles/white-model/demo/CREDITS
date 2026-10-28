@@ -1,0 +1,46 @@
+How a Flattened City Grew Back (被炸平的城市怎样长回来) — Projection on White Model (Lemo-Opuscar) · LemoLab × Claude Opus 5.5
+
+No AI-generated images, no stock footage, no photographs. The model is extruded from open building data in code; every
+light, colour, shadow, label and line is drawn by the page (three.js + 2D canvas). Download URLs are in build.sh
+(accessed 2026-10-16); the raw files are cached in assets/raw/.
+
+DATA (credited on screen top-left "3DBAG / BAG / BGT" and on the end card)
+- 3DBAG, LOD1.3 building parts with roof heights reconstructed from AHN LiDAR, by 3DGI and the 3D geoinformation
+  research group, TU Delft. https://3dbag.nl — licence CC BY 4.0. Fetched via the 3DBAG WFS (layer BAG3D:lod13).
+  Used: footprints, roof heights (b3_h_70p − b3_h_maaiveld), building identifiers.
+- BAG (Basisregistratie Adressen en Gebouwen), Kadaster: original construction year (oorspronkelijkbouwjaar),
+  delivered inside the 3DBAG attributes. Licence CC0 1.0.
+- BGT (Basisregistratie Grootschalige Topografie), collections "waterdeel" (water) and "overbruggingsdeel" (bridge
+  decks), via the PDOK OGC API https://api.pdok.nl/lv/bgt/ogc/v1 — licence CC0 1.0 (stated in the API metadata).
+- Modifications: cropped to RD x 91700–94000, y 435300–437900; extruded at 1:1000; shared walls removed; water
+  rasterised to a mask; a 2 m heightfield and noon shadow derived (tools/prep.py). The credits above still apply.
+- Sun positions computed (NOAA / Meeus solar position algorithm, tools/sun.py); RD ↔ WGS84 by the published
+  approximation formulas (tools/rd.py). No external data.
+
+FACTS
+- See FACTS.md: Stadsarchief Rotterdam (Rotterdam in oorlog; Het stadhuis tijdens het bombardement), Wikipedia
+  (De Zalmhaven; Kop van Zuid), and the measured values above.
+
+FONTS (SIL Open Font License 1.1, licence texts in fonts/; subset with the Google Fonts API &text=)
+- Noto Sans SC — Google / Adobe (labels, readouts, Chinese subtitle line, end card)
+- Inter Tight — The Inter Project Authors (figures, English subtitle line, end card)
+- IBM Plex Mono — IBM (instruments, years, coordinates)
+
+VOICE
+- Kokoro-82M (hexgrad), voice bm_george, Apache License 2.0; run locally via kokoro-onnx (MIT) through the library's
+  core/tts/tts.py. Speech check: faster-whisper small.en (MIT; OpenAI Whisper weights, MIT).
+
+MUSIC & SOUND
+- Original score and sound design, written for this film in mix.py: synthesis in numpy (projector fan hum, room tone,
+  relays, lamp strike, light-wash air swells, risers, ticks, punch) plus sampled instruments played through the
+  library's core/audio/sampler.py: bowed vibraphone, vibraphone, marimba, glockenspiel, hand chimes, glass harp,
+  tubular bells, contrabass, cellos, violins pizzicato, French horn, trombone, tuba, soft organ, timpani,
+  gran cassa, concert bass drum, gong, suspended cymbal.
+- Samples (CC0): FreePats project (freepats.zenvoid.org), VS Chamber Orchestra: Community Edition (Versilian
+  Studios), Versilian Community Sample Library (Versilian Studios).
+  Thanks to Versilian Studios / Sam Gossner; the organ samples in VSCO 2 CE are by Ivy Audio / Simon Dalzell.
+- Procedural helpers (click, clack, thump, compress) from the library's core/audio/sfx.py.
+
+CODE
+- three.js r170 (MIT), including RoomEnvironment (a procedural studio environment, no image).
+- Lemo-Opuscar core: render tools, core/three/post.js (depth of field, GTAO, bloom, grade), core/lib.js.

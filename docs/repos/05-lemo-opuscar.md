@@ -1,6 +1,6 @@
 # lemo-opuscar — lemomo-ai/lemo-opuscar
 
-> Submodule: [`repos/lemo-opuscar`](../../repos/lemo-opuscar) · License: **MIT** (demo assets keep their own licences, see each demo's `CREDITS`) · Verdict: ✅ **Adopt — best fit for a free/local pipeline**
+> Source (vendored): [`repos/lemo-opuscar`](../../repos/lemo-opuscar) · License: **MIT** (demo assets keep their own licences, see each demo's `CREDITS`) · Verdict: ✅ **Adopt — best fit for a free/local pipeline**
 
 ## What it is
 **43 film styles** (`styles/<slug>/STYLE.md` + `DEMO.md` + a demo film), each made entirely in code on a shared toolkit (`core/`). Three agent guides: `DIRECTOR.md` (story, sound, rhythm, camera, self-checks), `TECHNIQUE.md` (build) and the per-style `STYLE.md`. Stack: Canvas 2D, three.js r170 + WebGL2 post passes, playwright-core render; Python (numpy, scipy, soundfile) for audio; Kokoro / edge-tts / faster-whisper for voice. Claude plugin in `plugin/skills/lemo-opuscar/`.

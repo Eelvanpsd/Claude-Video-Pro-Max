@@ -1,0 +1,56 @@
+[
+ {
+  "id": "v1",
+  "text": "One glass slide. One slice of human liver.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ },
+ {
+  "id": "v2",
+  "text": "Four point eight millimeters across. The stain turns collagen blue.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us",
+  "asr": "4.8 millimeters across, the stain turns collagen blue."
+ },
+ {
+  "id": "v3",
+  "text": "In this one millimeter circle, blue covers thirteen point five percent.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us",
+  "asr": "In this one millimeter circle, blue covers 13.5%."
+ },
+ {
+  "id": "v4",
+  "text": "One point four millimeters away: thirty two point six.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us",
+  "asr": "1.4 millimeters away, 32.6."
+ },
+ {
+  "id": "v5",
+  "text": "Same slice, same stain. Two point four times the blue.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us",
+  "asr": "Same slice same stain 2.4 times the blue"
+ },
+ {
+  "id": "v6",
+  "text": "One nucleus, eight point five microns across.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us",
+  "asr": "One nucleus, 8.5 microns across."
+ },
+ {
+  "id": "v7",
+  "text": "Every number here was measured from the scan itself.",
+  "voice": "af_heart",
+  "speed": 0.95,
+  "lang": "en-us"
+ }
+]

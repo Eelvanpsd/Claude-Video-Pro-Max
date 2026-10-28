@@ -1,0 +1,35 @@
+export { spatialComponent } from "./component.js";
+export { contentFitPropertyNames, decodeContentFitProperties } from "./author.js";
+export {
+  anchoredFrameFragment,
+  aspectFrameFragment,
+  contentFitFragment,
+  frameEdgesFragment,
+} from "./fragment.js";
+export * from "./geometry.js";
+export {
+  spatialDependency,
+  spatialManifest, spatialMarkupSurfaces,
+  spatialModuleRef,
+  spatialProducers,
+  spatialTypes,
+} from "./manifest.js";
+export {
+  contentFitSchema,
+  intrinsicExtentSchema,
+  spatialFrameSchema,
+  spatialMap2DSchema,
+  spatialPathSchema,
+  spatialPointSchema,
+} from "./schema.js";
+export {
+  decodeAnchoredFrameSurface,
+  decodeAspectFrameSurface,
+  decodeCanvasSurface,
+  decodeExtentSurface,
+  decodeFrameSurface,
+  decodeMapSurface,
+  decodePathSurface,
+  decodePointSurface,
+} from "./surface.js";
+export type * from "./types.js";

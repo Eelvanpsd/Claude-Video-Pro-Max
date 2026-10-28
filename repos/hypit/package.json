@@ -1,0 +1,342 @@
+{
+  "name": "@hypit/hypit",
+  "version": "0.3.1",
+  "homepage": "https://hypit.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hypit-ai/hypit.git"
+  },
+  "description": "Hypit video authoring Distribution for AI agents",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "exports": {
+    "./cli": {
+      "hypit-source": "./packages/cli/src/public.ts",
+      "types": "./dist/public/cli.d.ts",
+      "import": "./packages/cli/src/public.ts"
+    },
+    "./compiler": {
+      "hypit-source": "./packages/compiler/src/index.ts",
+      "types": "./dist/public/compiler.d.ts",
+      "import": "./packages/compiler/src/index.ts"
+    },
+    "./executor": {
+      "hypit-source": "./packages/executor/src/index.ts",
+      "types": "./dist/public/executor.d.ts",
+      "import": "./packages/executor/src/index.ts"
+    },
+    "./kernel": {
+      "hypit-source": "./packages/kernel/src/index.ts",
+      "types": "./dist/public/kernel.d.ts",
+      "import": "./packages/kernel/src/index.ts"
+    },
+    "./project": {
+      "hypit-source": "./packages/project/src/index.ts",
+      "types": "./dist/public/project.d.ts",
+      "import": "./packages/project/src/index.ts"
+    },
+    "./runtime": {
+      "hypit-source": "./packages/runtime/src/index.ts",
+      "types": "./dist/public/runtime.d.ts",
+      "import": "./packages/runtime/src/index.ts"
+    },
+    "./source": {
+      "hypit-source": "./packages/source/src/index.ts",
+      "types": "./dist/public/source.d.ts",
+      "import": "./packages/source/src/index.ts"
+    },
+    "./source/text": {
+      "hypit-source": "./packages/source/src/header.ts",
+      "types": "./dist/public/source-text.d.ts",
+      "import": "./packages/source/src/header.ts"
+    },
+    "./workspace": {
+      "hypit-source": "./packages/workspace/src/index.ts",
+      "types": "./dist/public/workspace.d.ts",
+      "import": "./packages/workspace/src/index.ts"
+    },
+    "./workspace/node": {
+      "hypit-source": "./packages/workspace/src/node/index.ts",
+      "types": "./dist/public/workspace-node.d.ts",
+      "import": "./packages/workspace/src/node/index.ts"
+    },
+    "./blob": {
+      "hypit-source": "./packages/blob/src/index.ts",
+      "types": "./dist/public/blob.d.ts",
+      "import": "./packages/blob/src/index.ts"
+    },
+    "./admission": {
+      "hypit-source": "./packages/admission/src/index.ts",
+      "types": "./dist/public/admission.d.ts",
+      "import": "./packages/admission/src/index.ts"
+    },
+    "./producer": {
+      "hypit-source": "./packages/producer/src/index.ts",
+      "types": "./dist/public/producer.d.ts",
+      "import": "./packages/producer/src/index.ts"
+    },
+    "./facet": {
+      "hypit-source": "./packages/facet/src/index.ts",
+      "types": "./dist/public/facet.d.ts",
+      "import": "./packages/facet/src/index.ts"
+    },
+    "./protocol": {
+      "hypit-source": "./packages/protocol/src/index.ts",
+      "types": "./dist/public/protocol.d.ts",
+      "import": "./packages/protocol/src/index.ts"
+    },
+    "./author": {
+      "hypit-source": "./packages/author/src/index.ts",
+      "types": "./dist/public/author.d.ts",
+      "import": "./packages/author/src/index.ts"
+    },
+    "./markup": {
+      "hypit-source": "./packages/markup/src/index.ts",
+      "types": "./dist/public/markup.d.ts",
+      "import": "./packages/markup/src/index.ts"
+    },
+    "./markup/run": {
+      "hypit-source": "./packages/markup/src/run/index.ts",
+      "types": "./dist/public/markup-run.d.ts",
+      "import": "./packages/markup/src/run/index.ts"
+    },
+    "./run": {
+      "hypit-source": "./packages/run/src/index.ts",
+      "types": "./dist/public/run.d.ts",
+      "import": "./packages/run/src/index.ts"
+    },
+    "./result": {
+      "hypit-source": "./packages/result/src/index.ts",
+      "types": "./dist/public/result.d.ts",
+      "import": "./packages/result/src/index.ts"
+    },
+    "./result/node": {
+      "hypit-source": "./packages/result/src/node/index.ts",
+      "types": "./dist/public/result-node.d.ts",
+      "import": "./packages/result/src/node/index.ts"
+    },
+    "./endpoint": {
+      "hypit-source": "./packages/endpoint/src/index.ts",
+      "types": "./dist/public/endpoint.d.ts",
+      "import": "./packages/endpoint/src/index.ts"
+    },
+    "./endpoint/http": {
+      "hypit-source": "./packages/endpoint/src/http.ts",
+      "types": "./dist/public/endpoint-http.d.ts",
+      "import": "./packages/endpoint/src/http.ts"
+    },
+    "./loader": {
+      "hypit-source": "./packages/loader/src/index.ts",
+      "types": "./dist/public/loader.d.ts",
+      "import": "./packages/loader/src/index.ts"
+    },
+    "./loader/node": {
+      "hypit-source": "./packages/loader/src/node/public.ts",
+      "types": "./dist/public/loader-node.d.ts",
+      "import": "./packages/loader/src/node/public.ts"
+    },
+    "./loader/node/module-scope": {
+      "hypit-source": "./packages/loader/src/node/module-scope.ts",
+      "types": "./dist/public/loader-node-module-scope.d.ts",
+      "import": "./packages/loader/src/node/module-scope.ts"
+    },
+    "./atomic-file": {
+      "hypit-source": "./packages/atomic-file/src/index.ts",
+      "types": "./dist/public/atomic-file.d.ts",
+      "import": "./packages/atomic-file/src/index.ts"
+    },
+    "./recipe": {
+      "hypit-source": "./packages/recipe/src/index.ts",
+      "types": "./dist/public/recipe.d.ts",
+      "import": "./packages/recipe/src/index.ts"
+    },
+    "./text": {
+      "hypit-source": "./packages/text/src/index.ts",
+      "types": "./dist/public/text.d.ts",
+      "import": "./packages/text/src/index.ts"
+    }
+  },
+  "bin": {
+    "hypit": "./bin/hypit.mjs"
+  },
+  "hypit": {
+    "cli": {
+      "use": [
+        "@hypit/runtime-local/cli",
+        "@hypit/browser-capture/cli",
+        "@hypit/yt-dlp/cli",
+        "@hypit/media-local/cli",
+        "@hypit/speech-estimate/cli",
+        "@hypit/whisperx/cli",
+        "@hypit/video/cli",
+        "@hypit/studio/cli"
+      ]
+    },
+    "packageSources": [
+      "@hypit/video"
+    ]
+  },
+  "packageManager": "pnpm@10.33.0",
+  "files": [
+    "bin",
+    "dist/public/**/*.d.ts",
+    "docs/public/hypit-logo-dark.svg",
+    "docs/public/hypit-logo-light.svg",
+    "examples/minimal-author-package/README.md",
+    "examples/minimal-author-package/packages/*/package.json",
+    "examples/minimal-author-package/packages/*/tsconfig.json",
+    "examples/minimal-author-package/packages/*/README.md",
+    "examples/minimal-author-package/packages/*/src/**/*",
+    "examples/minimal-author-package/packages/*/preview/**/*",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "examples/semantic-composition/README.md",
+    "examples/semantic-composition/packages/*/src/**/*",
+    "examples/semantic-composition/packages/*/package.json",
+    "examples/semantic-composition/packages/*/tsconfig.json",
+    "examples/semantic-composition/packages/*/README.md",
+    "examples/semantic-composition/*.svml",
+    "examples/semantic-composition/*.svrun",
+    "examples/semantic-composition/*.svs",
+    "examples/semantic-composition/hypit.runtime.json",
+    "examples/provider-package/README.md",
+    "examples/provider-package/packages/*/package.json",
+    "examples/provider-package/packages/*/tsconfig.json",
+    "examples/provider-package/packages/*/src/**/*",
+    "examples/provider-package/hypit.runtime.json"
+  ],
+  "scripts": {
+    "pack:independent": "node scripts/pack-independent-package.mjs",
+    "check:seedance-package": "node --import tsx scripts/check-independent-seedance.mjs",
+    "check:hypihub-package": "node --import tsx scripts/check-independent-hypihub.mjs",
+    "check:runtime-packages": "node --import tsx scripts/check-independent-runtime-packages.mjs",
+    "check:ranking-package": "node --import tsx scripts/check-independent-ranking.mjs",
+    "check:visual-track-package": "node --import tsx scripts/check-independent-visual-track.mjs",
+    "check:audio-track-package": "node --import tsx scripts/check-independent-audio-track.mjs",
+    "check:fine-packages": "node --import tsx scripts/check-independent-fine-packages.mjs",
+    "check:author-packages": "node --import tsx scripts/check-independent-author-packages.mjs",
+    "check:component-packages": "node --import tsx scripts/check-independent-components.mjs",
+    "pack:distribution": "node scripts/pack-distribution.mjs",
+    "check:distribution": "node scripts/check-distribution.mjs",
+    "pack:release-candidate": "node scripts/pack-release-candidate.mjs",
+    "check:release-candidate": "node scripts/check-release-candidate.mjs",
+    "publish:release-dependencies": "node scripts/publish-release-candidate.mjs dist/release/release-plan.json --independent-only",
+    "trust:release-dependencies": "npm exec --yes --package=npm@^11.15.0 -- node scripts/configure-release-publishers.mjs dist/release/release-plan.json",
+    "build:public-types": "node scripts/build-public-types.mjs",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "test": "node test/run.mjs",
+    "test:runtime-scale": "node test/run.mjs runtime-scale",
+    "test:whisperx-service": "uv run --project packages/provider-whisperx-local/runtime --frozen python -m unittest discover -s packages/provider-whisperx-local/test/service -p \"test_*.py\"",
+    "test:image-opencv": "node test/run.mjs image-opencv",
+    "hypit": "node bin/hypit.mjs",
+    "studio": "node bin/hypit.mjs studio",
+    "prepack": "npm run build:public-types"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "devDependencies": {
+    "@hypit/admission": "workspace:*",
+    "@hypit/author": "workspace:*",
+    "@hypit/blob": "workspace:*",
+    "@hypit/browser-capture": "workspace:*",
+    "@hypit/result": "workspace:*",
+    "@hypit/caption": "workspace:*",
+    "@hypit/comment-sticker": "workspace:*",
+    "@hypit/composition": "workspace:*",
+    "@hypit/credential-store-env": "workspace:*",
+    "@hypit/credential-store-local": "workspace:*",
+    "@hypit/depth-stack": "workspace:*",
+    "@hypit/elevenlabs-speech": "workspace:*",
+    "@hypit/speech-estimate": "workspace:*",
+    "@hypit/fishaudio-speech": "workspace:*",
+    "@hypit/generation": "workspace:*",
+    "@hypit/gpt-image": "workspace:*",
+    "@hypit/gpt-image-kits": "workspace:*",
+    "@hypit/grok-imagine": "workspace:*",
+    "@hypit/html-document": "workspace:*",
+    "@hypit/html-program": "workspace:*",
+    "@hypit/image-operations": "workspace:*",
+    "@hypit/interview-emoji-reveal": "workspace:*",
+    "@hypit/media": "workspace:*",
+    "@hypit/media-operations": "workspace:*",
+    "@hypit/mimo-speech": "workspace:*",
+    "@hypit/minimax-h3": "workspace:*",
+    "@hypit/nano-banana": "workspace:*",
+    "@hypit/narrative": "workspace:*",
+    "@hypit/narrative-caption": "workspace:*",
+    "@hypit/narrative-temporal": "workspace:*",
+    "@hypit/pixverse": "workspace:*",
+    "@hypit/project": "workspace:*",
+    "@hypit/producer": "workspace:*",
+    "@hypit/protocol": "workspace:*",
+    "@hypit/markup": "workspace:*",
+    "@hypit/run": "workspace:*",
+    "@hypit/provider-beatapi": "workspace:*",
+    "@hypit/provider-hiapi": "workspace:*",
+    "@hypit/provider-html-local": "workspace:*",
+    "@hypit/provider-image-opencv-local": "workspace:*",
+    "@hypit/media-local": "workspace:*",
+    "@hypit/provider-monid": "workspace:*",
+    "@hypit/provider-pollo": "workspace:*",
+    "@hypit/provider-tokendance": "workspace:*",
+    "@hypit/provider-whisperx-local": "workspace:*",
+    "@hypit/ranking": "workspace:*",
+    "@hypit/region-evidence": "workspace:*",
+    "@hypit/html-video": "workspace:*",
+    "@hypit/runtime-local": "workspace:*",
+    "@hypit/video": "workspace:*",
+    "@hypit/studio": "workspace:*",
+    "@hypit/seedream": "workspace:*",
+    "@hypit/spatial": "workspace:*",
+    "@hypit/narrative-speech-alignment": "workspace:*",
+    "@hypit/speech-evidence": "workspace:*",
+    "@hypit/studio-companion": "workspace:*",
+    "@hypit/recipe": "workspace:*",
+    "@hypit/temporal": "workspace:*",
+    "@hypit/text": "workspace:*",
+    "@hypit/timeline": "workspace:*",
+    "@hypit/volcengine-matting": "workspace:*",
+    "@hypit/wan": "workspace:*",
+    "@hypit/yt-dlp": "workspace:*",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/league-spartan": "5.3.0",
+    "@fontsource-variable/montserrat": "5.3.0",
+    "@fontsource-variable/noto-sans-sc": "5.3.0",
+    "@fontsource/archivo-black": "5.3.0",
+    "linkedom": "0.18.13",
+    "rollup": "4.62.4",
+    "rollup-plugin-dts": "6.2.3",
+    "vitepress": "^1.6.4",
+    "@hypit/fontsource": "workspace:*",
+    "@hypit/audio-track": "workspace:*",
+    "@hypit/caption-fine": "workspace:*",
+    "@hypit/film": "workspace:*",
+    "@hypit/provider-hypihub": "workspace:*",
+    "@hypit/seedance": "workspace:*",
+    "@hypit/seedance-kits": "workspace:*",
+    "@hypit/script": "workspace:*",
+    "@hypit/text-fine": "workspace:*",
+    "@hypit/timeline-author": "workspace:*",
+    "@hypit/visual-track": "workspace:*"
+  },
+  "dependencies": {
+    "@hypit/browser-capture": "workspace:^0.2.0",
+    "@hypit/speech-estimate": "workspace:^0.1.1",
+    "@hypit/media-local": "workspace:^0.2.0",
+    "@hypit/runtime-local": "workspace:^0.1.1",
+    "@hypit/video": "workspace:^0.2.0",
+    "@hypit/studio": "workspace:^0.2.0",
+    "@hypit/whisperx": "workspace:^0.2.0",
+    "@hypit/yt-dlp": "workspace:^0.2.0",
+    "@types/node": "24.10.1",
+    "koffi": "3.2.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "cjs-module-lexer": "2.2.1"
+  }
+}
