@@ -1,0 +1,40 @@
+set dotenv-load := false
+
+COLOR := "\\033[0;31m"
+NO_COLOR := "\\033[0m"
+
+# Show all available recipes
+@_default:
+    printf "\n{{ COLOR }}# Node.js automations (path: \`automations/js/\`)\n"
+    printf "==============================================={{ NO_COLOR }}\n"
+    just --list --unsorted
+
+# Run a script
+[positional-arguments]
+run script *args:
+    #! /usr/bin/env bash
+    pnpm --filter automations exec node src/{{ script }} "${@:2}"
+
+#################
+# Weekly report #
+#################
+
+# Generate and post the weekly report
+report:
+    just run last_week_tonight.mjs
+
+##########
+# Render #
+##########
+
+_render slug name:
+    just run render-jinja.js \
+        templates/release-drafter.yml.jinja \
+        .github/release-drafter-{{ slug }}.yml \
+        '{"app": "{{ name }}"}'
+
+render-release-drafter:
+    just _render api API
+    just _render ingestion_server "Ingestion Server"
+    just _render frontend Frontend
+    just _render catalog Catalog

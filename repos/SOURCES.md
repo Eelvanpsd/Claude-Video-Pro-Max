@@ -12,3 +12,6 @@ Each folder in `repos/` is a full copy of the upstream repo at the commit that w
 | `hypit` | https://github.com/hypit-ai/hypit.git | `0d36de9a9d17562fca0e478969b80eb1c16a7693` |
 | `OpenMontage` | https://github.com/calesthio/OpenMontage.git | `c8066452325cb57c8fc1ba8c2a71b6e8842e6b65` |
 | `reels-sistemi` | https://github.com/yapaytu/reels-sistemi.git | `4e0e59bb3a8d806a38d29127ced5a39e754528c3` |
+| `openverse` | https://github.com/WordPress/openverse.git | `0af981afc20118c87343a59389da10827788dd57` |
+| `earshot` | https://github.com/Leonxlnx/earshot.git | `591fa3e028032e6dce56620a20e932e35667e8d8` |
+| `real-sfx` | https://github.com/Clipwing/skills.git (folder `skills/real-sfx` only) | `edbefcbc3474869e6cc1e8a7ca583b0efd0dab7e` |

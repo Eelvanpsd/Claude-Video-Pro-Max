@@ -1,0 +1,25 @@
+name: Label sync
+# ℹ️ https://github.com/WordPress/openverse/blob/main/.github/GITHUB.md#label-sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *" # at 00:00
+
+jobs:
+  sync_labels:
+    name: Sync labels
+    runs-on: ubuntu-latest
+    # Prevent running this workflow on forks, it's unnecessary for external contributors
+    if: github.repository_owner == 'WordPress'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync labels from monorepo to infra
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.ACCESS_TOKEN }}
+          script: |
+            const { main } = await import('${{ github.workspace }}/automations/js/src/sync_labels.mjs')
+            await main(github, core)

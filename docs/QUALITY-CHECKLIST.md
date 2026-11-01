@@ -1,4 +1,4 @@
-# Quality checklist — numbers collected from all eight repos
+# Quality checklist — numbers collected from all eleven repos
 
 Use as a pre-delivery gate. Source in brackets.
 
@@ -36,6 +36,15 @@ Use as a pre-delivery gate. Source in brackets.
 - [ ] Whoosh starts 10–20 ms *before* the visual, 400–500 ms long *(OpenMontage)*
 - [ ] Don't repeat the same effect on every cut *(hypit)*
 - [ ] No clipping; SFX peaks ≈ −8 dBFS *(onetake)*
+- [ ] Every SFX file is CC0/PDM, licence re-checked on its landing page, logged with creator + URL *(openverse, earshot real-sound)*
+- [ ] Every SFX file reads "real or pro-produced" in `earshot realness`, and `earshot match` against its label is strong/plausible *(earshot)*
+- [ ] SFX placed by audible start (chimes/hits by arrival: first 60 ms within 6 dB of the peak), not by file start *(real-sfx)*
+- [ ] Same-type sounds < 25 ms apart become one; never > 14 sounds/s *(real-sfx)*
+- [ ] Hits within 1 frame of their cue (`earshot timeline --cues`) *(earshot)*
+- [ ] Not a hit on every cut — accents on the moments that matter *(earshot launch profile)*
+- [ ] Mix survives mono (phone speaker); SFX kept out of the voice band *(real-sfx)*
+- [ ] A bed "at the edge of hearing": ≈ −54 dBFS median, never louder than ~−44 dBFS *(real-sfx bed.py blind ladder)*
+- [ ] First sound within 0.5 s; no dead air after the last sound *(earshot launch profile)*
 
 ## Publishing
 - [ ] Caption line 1 = the hook (it is what shows before "more"); then title, a comment prompt, 3–5 tags; no money/earnings promises *(reels-sistemi)*

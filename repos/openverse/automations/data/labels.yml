@@ -1,0 +1,287 @@
+colors:
+  UNFAVOURABLE: "b60205"
+  NEGATIVE: "ff9f1c"
+  NEUTRAL: "ffcc00"
+  POSITIVE: "cfda2c"
+  FAVOURABLE: "008672"
+  BLACK: "000000"
+  DARKER: "333333"
+  DARK: "666666"
+  MEDIUM: "999999"
+  LIGHT: "cccccc"
+  LIGHTER: "eeeeee"
+  WHITE: "ffffff"
+
+groups:
+  - name: priority
+    is_required: true
+    labels:
+      - name: critical
+        color: "UNFAVOURABLE"
+        description: Must be addressed ASAP
+        emoji: "🟥"
+      - name: high
+        color: "NEGATIVE"
+        description: Stalls work on the project or its dependents
+        emoji: "🟧"
+      - name: medium
+        color: "NEUTRAL"
+        description: Not blocking but should be addressed soon
+        emoji: "🟨"
+      - name: low
+        color: "POSITIVE"
+        description: Low priority and doesn't need to be rushed
+        emoji: "🟩"
+
+  - name: status
+    is_required: true
+    labels:
+      - name: ready for work
+        color: "LIGHT"
+        description: Ready for work
+        emoji: "🏁"
+      - name: blocked
+        color: "MEDIUM"
+        description: Blocked & therefore, not ready for work
+        emoji: "⛔"
+      - name: ticket work required
+        color: "DARK"
+        description: Needs more details before it can be worked on
+        emoji: "🧹"
+      - name: label work required
+        color: "DARK"
+        description: Needs proper labelling before it can be worked on
+        emoji: "🏷"
+      - name: discarded
+        color: "LIGHTER"
+        description: Will not be worked on
+        emoji: "⛔️"
+      - name: discontinued
+        color: "LIGHTER"
+        description: Not suitable for work as repo is in maintenance
+        emoji: "🙅"
+      - name: awaiting triage
+        color: "DARKER"
+        description: Has not been triaged & therefore, not ready for work
+        emoji: "🚦"
+
+  - name: goal
+    color: "ffffff"
+    is_required: true
+    labels:
+      - name: addition
+        description: Addition of new feature
+        emoji: "🌟"
+      - name: improvement
+        description: Improvement to an existing user-facing feature
+        emoji: "✨"
+      - name: internal improvement
+        description: Improvement that benefits maintainers, not users
+        emoji: "🧰"
+      - name: fix
+        description: Bug fix
+        emoji: "🛠"
+
+  - name: stack
+    color: "006b75"
+    emoji: "🧱"
+    is_required: true
+    apply_all_available: true
+    labels:
+      - name: frontend
+        description: Related to the Nuxt frontend
+      - name: mgmt
+        description: Related to repo management and automations
+      - name: api
+        description: Related to the Django API
+      - name: catalog
+        description: Related to the catalog and Airflow DAGs
+      - name: analytics
+        description: Related to the analytics setup
+      - name: ingestion server
+        description: Related to the ingestion/data refresh server
+      - name: documentation
+        description: Related to Sphinx documentation
+      - name: infra
+        description: Related to the Terraform config and other infrastructure
+
+  - name: tooling
+    labels:
+      - name: sentry
+        color: "362d59"
+        description: Sentry issue
+        emoji: "🐛"
+
+  - name: aspect
+    color: "04338c"
+    is_required: true
+    labels:
+      - name: text
+        description: Concerns the textual material in the repository
+        emoji: "📄"
+      - name: code
+        description: Concerns the software code in the repository
+        emoji: "💻"
+      - name: data
+        description: Concerns the data in our catalog and/or databases
+        emoji: "🗄️"
+      - name: interface
+        description: Concerns end-users' experience with the software
+        emoji: "🕹"
+      - name: dx
+        description: Concerns developers' experience with the codebase
+        emoji: "🤖"
+      - name: a11y
+        description: Concerns related to the project's accessibility
+        emoji: "♿️"
+      - name: design
+        description: Concerns related to design
+        emoji: "🖼️"
+
+  - name: talk
+    color: "f9bbe5"
+    labels:
+      - name: question
+        description: Can be resolved with an answer
+        emoji: "❓"
+      - name: discussion
+        description: Open for discussions and feedback
+        emoji: "💬"
+
+  - name: tech
+    color: "fcdf4a"
+    labels:
+      # Programming languages
+      - name: javascript
+        description: Involves JavaScript
+        emoji: "🟨"
+      - name: python
+        description: Involves Python
+        emoji: "🐍"
+      - name: php
+        description: Involves PHP
+        emoji: "🐘"
+      # Libraries / other software
+      - name: vue
+        description: Involves Vue.js
+        emoji: "🔧"
+      - name: django
+        description: Involves Django
+        emoji: "🔧"
+      - name: airflow
+        description: Involves Apache Airflow
+        emoji: "🔧"
+      - name: docker
+        description: Involves Docker
+        emoji: "🐳"
+      - name: postgres
+        description: Involves PostgreSQL
+        emoji: "💾"
+      - name: css
+        description: Involves CSS
+        emoji: "🎨"
+      - name: bash
+        description: Involves Bash
+        emoji: "💲"
+      - name: typescript
+        description: Involves TypeScript
+        emoji: "⌨️"
+      - name: pytest
+        description: Involves pytest
+        emoji: "🐍"
+      - name: vitest
+        description: Involves vitest
+        emoji: "🟨"
+      - name: playwright
+        description: Involves Playwright
+        emoji: "🔧"
+      - name: elasticsearch
+        description: Involves Elasticsearch
+        emoji: "🔧"
+      - name: redis
+        description: Involves Redis
+        emoji: "🔧"
+      - name: github actions
+        description: Involves Github Actions
+        emoji: "🔧"
+      - name: just
+        description: Involves Just.js
+        emoji: "🔧"
+
+  # Labels related to new source issues
+  - name: provider
+    emoji: "☁️"
+    color: "478d04"
+    labels:
+      - name: any
+        description: Replace with the actual provider type
+      - name: audio
+        description: Audio provider
+      - name: images
+        description: Image provider
+      - name: text
+        description: Text provider
+      - name: video
+        description: Video provider
+      - name: 3D models
+        description: 3D model provider
+
+  - name: project
+    color: "8b3dcd"
+    emoji: "🧭"
+    labels:
+      - name: thread
+        description: An issue used to track a project and its progress
+      - name: proposal
+        description: A proposal for a project
+      - name: implementation plan
+        description: An implementation plan for a project
+
+  - name: friendliness
+    color: "7f0799"
+    is_prefixed: false
+    labels:
+      - name: good first issue
+        description: New-contributor friendly
+        emoji: "🤗"
+        has_emoji_name: false
+      - name: help wanted
+        description: Open to participation from the community
+        emoji: "🙏"
+        has_emoji_name: false
+      - name: staff only
+        description: Restricted to staff members
+        emoji: "🔒"
+
+  # Labels for semantic versioning
+  # Docs: https://semver.org
+  - name: versioning
+    color:
+    labels:
+      - name: major
+        description: Major version bump, associated with breaking change
+        emoji: "💥"
+      - name: minor
+        description: Minor version bump, associated with new feature
+        emoji: "🎉"
+      - name: patch
+        description: Patch version bump, associated with bug fix
+        emoji: "🐛"
+
+standalone:
+  - name: "ノಠ益ಠノ彡┻━┻"
+    color: "000000"
+    description: Aaargh!
+    emoji: "🤯"
+
+  - name: Hacktoberfest
+    color: "883255"
+    description: Ideal for Hacktoberfest participation
+    emoji: "🎃"
+    has_emoji_name: false
+
+  - name: invalid
+    color: "LIGHTER"
+    description: Inappropriate or invalid (ex. Hacktoberfest spam)
+    emoji: "⛔️"
+    has_emoji_name: false

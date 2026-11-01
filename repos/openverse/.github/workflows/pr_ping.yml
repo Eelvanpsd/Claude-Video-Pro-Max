@@ -1,0 +1,56 @@
+name: New PR notification
+# ℹ️ https://github.com/WordPress/openverse/blob/main/.github/GITHUB.md#new-pr-notification
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - ready_for_review
+
+jobs:
+  send_message:
+    name: Send Slack message
+    # Prevent running this workflow on forks, it's unnecessary for external contributors
+    # Also prevent running this for bot-related PRs
+    if: |
+      github.actor != 'dependabot[bot]' &&
+      !startsWith(github.event.pull_request.title, '🔄') &&
+      github.repository_owner == 'WordPress'
+    runs-on: ubuntu-latest
+    env:
+      EVENT_ACTION: ${{ github.event.action }}
+    steps:
+      - name: Write payload to file
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let { writeFileSync } = await import('fs')
+
+            const repoName = `${context.repo.owner}/${context.repo.repo}`
+            const { pull_request: pr } = context.payload
+            const isNew = process.env.EVENT_ACTION === 'opened'
+            const emoji = pr.draft ? ':pr-draft:' : ':pull-request:'
+            const adjective = isNew ? pr.draft ? 'New draft ' : 'New ' : ''
+            const verb = isNew ? 'opened' : 'marked ready for review'
+
+            const payload = {
+              text: `${adjective}PR ${verb} by ${pr.user.login} in ${repoName}: #${pr.number} - ${pr.title}`,
+              blocks: [
+                {
+                  type: 'section',
+                  text: {
+                    type: 'mrkdwn',
+                    text: `${emoji} ${adjective}PR ${verb} by *${pr.user.login}* in \`${repoName}\`:\n<${pr.html_url}|#${pr.number} - ${pr.title}>`
+                  }
+                }
+              ]
+            }
+            console.log(JSON.stringify(payload))
+            writeFileSync('/tmp/pr_ping_payload.json', JSON.stringify(payload))
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: /tmp/pr_ping_payload.json

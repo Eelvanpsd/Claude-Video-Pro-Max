@@ -23,3 +23,10 @@ Status: ✅ shipped in [`kit/`](../kit) · 🔜 next · 💡 later.
 | 16 | Offline duration estimate (EN 4.6 syll/s) before TTS | Faster scripting | S | hypit `speech-estimate` | 💡 |
 | 17 | Mouth envelope for talking characters (95th-pct normalised, breath floor) | Lip-sync without phonemes | S | reels-sistemi `genlik.py` | ✅ `mouth-envelope.py` |
 | 18 | Hook wording rules + hook-first post caption, comment prompt, 3:4 cover crop | Stop-scroll & reach | S | reels-sistemi SKILL.md | ✅ checklist |
+| 19 | **CC0 SFX sourcing via Openverse API** (`license=cc0`, short duration, manifest with creator + landing URL) | Bigger, licence-safe SFX library | S | openverse | 🔜 |
+| 20 | **`earshot realness` + `match` gate** on every new SFX file | Proves "no synthetic SFX", right sound for the label | S | earshot | 🔜 |
+| 21 | **Sync proof**: `earshot timeline --cues` — every chime/paper/page-turn within 1 frame of its word/label | Sound tied to the word, measured | S | earshot, real-sfx | 🔜 |
+| 22 | Place SFX by audible start (chimes by arrival), fuse < 25 ms, mono check | Tighter hits, no phone-speaker dropouts | S | real-sfx `mix.py` | 💡 |
+| 23 | Sound sheet PNG beside the contact sheet in post-render QA | Agent can "see" the mix | S | earshot `sheet` | 💡 |
+| 24 | Own reference profile from `docs/reference/` videos → `earshot critique` against it | Genre-correct audio scorecard | M | earshot `profile` | 💡 |
+| 25 | Blind A/B listen page for mix-level decisions | Real ears, one tap | S | real-sfx `listen_page.py` | 💡 |

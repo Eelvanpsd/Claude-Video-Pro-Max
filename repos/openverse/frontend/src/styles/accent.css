@@ -1,0 +1,28 @@
+@reference "./tailwind.css";
+
+/* Layered so that utilities (e.g. `focus-visible:outline-style-none`) can override these defaults. */
+@layer base {
+  body * {
+    /* Accent color tints checkbox, radio, range and progress. */
+    accent-color: var(--color-border-focus);
+  }
+
+  :focus-visible {
+    outline-style: solid;
+    outline-color: var(--color-border-focus);
+  }
+
+  ::selection {
+    /* Using white text because selection background is dark. */
+    @apply bg-primary text-over-dark;
+  }
+
+  ::-webkit-calendar-picker-indicator,
+  ::-webkit-clear-button,
+  ::-webkit-inner-spin-button,
+  ::-webkit-outer-spin-button,
+  ::marker {
+    /* List markers can be tinted as text. */
+    @apply text-link;
+  }
+}

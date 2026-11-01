@@ -1,0 +1,38 @@
+name: New discussion notification
+# ℹ️ https://github.com/WordPress/openverse/blob/main/.github/GITHUB.md#new-discussion-notification
+
+on:
+  discussion:
+    types:
+      - created
+
+jobs:
+  send_message:
+    name: Send Slack message
+    runs-on: ubuntu-latest
+    env:
+      discussion_url: ${{ github.event.discussion.html_url }}
+      discussion_number: ${{ github.event.discussion.number }}
+      discussion_title: ${{ format('{0}', github.event.discussion.title) }}
+      discussion_author: ${{ github.event.discussion.user.login }}
+      discussion_repo: ${{ github.event.repository.full_name }}
+    steps:
+      - name: Send notification for new discussion
+        id: slack
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+             "text": "New discussion opened by ${{ env.discussion_author }} in ${{ env.discussion_repo }}: #${{ env.discussion_number }} - ${{ env.discussion_title }}",
+             "blocks": [
+               {
+                 "type": "section",
+                 "text": {
+                   "type": "mrkdwn",
+                   "text": ":github: New discussion opened by *${{ env.discussion_author }}* in ${{ env.discussion_repo }}:\n<${{ env.discussion_url }}|#${{ env.discussion_number }} - ${{ env.discussion_title }}>"
+                 }
+               }
+             ]
+            }

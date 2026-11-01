@@ -26,3 +26,19 @@
 6. **onetake** — motion blur and measured QA (ideas only, non-commercial).
 7. **gbro-collage-broll** — paid core; workflow ideas only.
 8. **reels-sistemi** (MIT, not in the matrix — small skill) — hook rules, post package, mouth envelope; engine skipped.
+9. **openverse** — CC0 sound-effect sourcing through the public API (step before any SFX work).
+10. **earshot** — measured listening: realness, match, sync timeline, sound sheet (synthesis side skipped).
+11. **real-sfx** — placement, level and verification rules for real library SFX (library mode only).
+
+## Sound repos (9–11)
+
+| | openverse | earshot | real-sfx |
+|---|---|---|---|
+| **Author** | WordPress | Leon Lin | Alexander Korbanov (Clipwing) |
+| **License** | MIT (media: own CC licences) | MIT | MIT scripts; uisfx sounds CC0 |
+| **Role** | Find & license-check recordings | Listen / measure / critique | Place, level, mix, verify |
+| **Language** | Python (Django) + Vue | Python (torch, CLAP, AST) | Python + ffmpeg |
+| **Fully free / local?** | ✅ hosted API, free key optional | ✅ CPU (Gemini `llm` optional, paid) | ✅ |
+| **Agent skill included** | – | `skills/earshot`, `skills/real-sound` + MCP | SKILL.md + 7 references |
+| **Synthesis?** | none | ⚠️ `forge`/`sfx`/`kit` make sound in code | ⚠️ bundled uisfx is synthesized (opt-out `--ui library`) |
+| **Best single takeaway** | `license=cc0` at the source + attribution manifest | `realness` + `timeline --cues` sync proof | Audible-start placement + voice-safe + mono check |
