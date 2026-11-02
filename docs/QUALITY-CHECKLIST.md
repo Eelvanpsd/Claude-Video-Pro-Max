@@ -1,4 +1,4 @@
-# Quality checklist — numbers collected from all eleven repos
+# Quality checklist — numbers collected from all twelve repos
 
 Use as a pre-delivery gate. Source in brackets.
 
@@ -45,6 +45,9 @@ Use as a pre-delivery gate. Source in brackets.
 - [ ] Mix survives mono (phone speaker); SFX kept out of the voice band *(real-sfx)*
 - [ ] A bed "at the edge of hearing": ≈ −54 dBFS median, never louder than ~−44 dBFS *(real-sfx bed.py blind ladder)*
 - [ ] First sound within 0.5 s; no dead air after the last sound *(earshot launch profile)*
+- [ ] Narration take scanned: no unintended long silence, sudden volume jumps, clipping, empty or NaN samples *(VoiceStudio Check audio)*
+- [ ] Pauses carry room tone, not digital zero; limiter only above −1 dBFS, leveler works per phrase, not per syllable *(VoiceStudio)*
+- [ ] Every voice model used on a monetised video has a commercial-use licence (no CC-BY-NC weights) *(VoiceStudio model inventory)*
 
 ## Publishing
 - [ ] Caption line 1 = the hook (it is what shows before "more"); then title, a comment prompt, 3–5 tags; no money/earnings promises *(reels-sistemi)*

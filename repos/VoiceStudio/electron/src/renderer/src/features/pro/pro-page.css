@@ -1,0 +1,828 @@
+.pro-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: var(--foreground);
+  background: var(--background);
+}
+.pro-page-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  container: pro-page/inline-size;
+}
+.pro-page-content {
+  max-width: 1120px;
+  margin: auto;
+  padding: 0 clamp(24px, 5cqi, 72px) 80px;
+}
+.pro-page :is(a, button, input):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.pro-kicker {
+  display: block;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.pro-pricing {
+  padding-top: clamp(42px, 6cqi, 76px);
+}
+.pro-pricing .pro-section-head {
+  text-align: center;
+}
+.pro-pricing .pro-section-head h2,
+.pro-pricing .pro-section-head > p {
+  margin-inline: auto;
+}
+.pro-section-head h2 {
+  margin-top: 14px;
+  font-size: clamp(33px, 4.5cqi, 53px);
+  line-height: 1.09;
+  letter-spacing: -0.045em;
+  font-weight: 400;
+  text-wrap: balance;
+}
+.pro-section-head > p {
+  max-width: 610px;
+  margin-top: 13px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+.pro-plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 1040px;
+  margin: 32px auto 0;
+}
+.pro-plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 25px 24px 23px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--foreground) 2.5%, var(--card)),
+    var(--card) 42%
+  );
+  box-shadow: 0 24px 70px -62px color-mix(in srgb, var(--foreground) 45%, transparent);
+  transition:
+    border-color 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+.pro-plan::before {
+  content: '';
+  position: absolute;
+  inset: 0 14% auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--foreground) 22%, transparent),
+    transparent
+  );
+}
+.pro-plan:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--foreground) 18%, var(--border));
+  box-shadow: 0 30px 80px -58px color-mix(in srgb, var(--foreground) 40%, transparent);
+}
+.pro-plan--featured {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--border));
+  background:
+    radial-gradient(
+      420px circle at 18% 0,
+      color-mix(in srgb, var(--primary) 14%, transparent),
+      transparent 54%
+    ),
+    linear-gradient(155deg, color-mix(in srgb, var(--primary) 7%, var(--card)), var(--card) 48%);
+  box-shadow: 0 28px 80px -58px var(--primary);
+}
+.pro-plan--featured::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--primary) 78%, white),
+    transparent
+  );
+}
+.pro-plan--enterprise {
+  background:
+    radial-gradient(
+      360px circle at 100% 0,
+      color-mix(in srgb, var(--primary) 7%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(
+      155deg,
+      color-mix(in srgb, var(--foreground) 2.5%, var(--card)),
+      var(--card) 42%
+    );
+}
+.pro-plan-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pro-plan-top h3 {
+  font-size: 17px;
+  font-weight: 700;
+}
+.pro-plan-badge {
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  border-radius: 20px;
+  color: var(--primary);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+.pro-plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 21px;
+}
+.pro-plan-price strong {
+  font-size: clamp(29px, 3.2cqi, 42px);
+  line-height: 1;
+  letter-spacing: -0.055em;
+}
+.pro-plan-price span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.pro-plan > p {
+  max-width: 350px;
+  margin-top: 10px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.pro-seat-picker {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px 14px;
+  margin-top: 15px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 8%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--foreground) 2%, transparent);
+}
+.pro-seat-picker > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pro-seat-picker span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.pro-seat-picker strong {
+  font-size: 15px;
+}
+.pro-seat-controls {
+  display: flex;
+  gap: 7px;
+}
+.pro-seat-controls button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 19px;
+  line-height: 1;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+.pro-seat-controls button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--background));
+}
+.pro-seat-controls button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.pro-seat-total {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.pro-seat-total strong {
+  font-size: 18px;
+  letter-spacing: -0.025em;
+}
+.pro-plan-features {
+  display: grid;
+  gap: 8px;
+  margin-top: 17px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+.pro-plan-features li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 8px;
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pro-plan-features svg {
+  width: 15px;
+  height: 15px;
+  margin-top: 0;
+  padding: 2px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+  stroke-width: 2.4;
+}
+.pro-plan-end {
+  margin-top: auto;
+  padding-top: 15px;
+}
+.pro-plan-buy a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px;
+  border: 1px solid var(--primary);
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.pro-plan-buy a:hover {
+  filter: brightness(0.93);
+}
+.pro-plan-buy svg {
+  width: 15px;
+  height: 15px;
+}
+.pro-billing-note {
+  margin-top: 17px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+}
+.pro-features {
+  margin-top: 79px;
+}
+.pro-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 30px;
+}
+.pro-feature-card {
+  --feature-x: 50%;
+  --feature-y: 50%;
+  --feature-angle: 45deg;
+  position: relative;
+  isolation: isolate;
+  min-height: 270px;
+  overflow: hidden;
+  padding: 27px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--card);
+  transition:
+    border-color 0.25s ease,
+    transform 0.25s ease;
+}
+.pro-feature-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  transform: translateY(-2px);
+}
+.pro-feature-card::before,
+.pro-feature-effect {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pro-feature-copy {
+  position: relative;
+  z-index: 2;
+}
+.pro-feature-card svg {
+  width: 23px;
+  height: 23px;
+  color: var(--primary);
+}
+.pro-feature-card h3 {
+  margin-top: 104px;
+  font-size: 16px;
+  letter-spacing: -0.025em;
+}
+.pro-feature-card p {
+  margin-top: 10px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.pro-features .pro-section-head {
+  text-align: center;
+}
+.pro-features .pro-section-head h2 {
+  max-width: 780px;
+  margin-inline: auto;
+  font-size: clamp(23px, 2.7cqi, 32px);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+.pro-features .pro-section-head > p {
+  margin-inline: auto;
+}
+.pro-feature-card--spotlight::before {
+  background: radial-gradient(
+    190px circle at var(--feature-x) var(--feature-y),
+    color-mix(in srgb, var(--primary) 20%, transparent),
+    transparent 72%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.pro-feature-card--spotlight:hover::before {
+  opacity: 1;
+}
+.pro-feature-card--spotlight .pro-feature-effect {
+  inset: 34px 28px auto auto;
+  width: 110px;
+  height: 72px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 9%, var(--card)),
+    var(--card)
+  );
+  box-shadow:
+    -19px 18px 0 -1px var(--card),
+    -19px 18px 0 0 var(--border);
+}
+.pro-feature-card--orbit .pro-feature-effect {
+  inset: 25px 27px auto auto;
+  width: 92px;
+  height: 92px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 50%;
+}
+.pro-feature-card--orbit .pro-feature-effect::before {
+  content: '';
+  position: absolute;
+  inset: 15px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+.pro-feature-card--orbit .pro-feature-effect::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 42px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 68px 0 color-mix(in srgb, var(--primary) 45%, transparent);
+  transform-origin: 4px 38px;
+  animation: pro-orbit 5s linear infinite;
+}
+.pro-feature-card--lanes::before {
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--feature-angle),
+    transparent 0 34%,
+    color-mix(in srgb, var(--primary) 85%, white) 48%,
+    transparent 63%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+.pro-feature-card--lanes:hover::before {
+  opacity: 1;
+}
+.pro-feature-card--lanes .pro-feature-effect {
+  inset: 34px 28px auto;
+  height: 66px;
+  background:
+    linear-gradient(var(--border), var(--border)) 0 5px/72% 1px no-repeat,
+    linear-gradient(var(--border), var(--border)) 0 32px/88% 1px no-repeat,
+    linear-gradient(var(--border), var(--border)) 0 59px/60% 1px no-repeat;
+}
+.pro-feature-card--lanes .pro-feature-effect::before {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow:
+    0 27px 0 color-mix(in srgb, var(--primary) 65%, transparent),
+    0 54px 0 color-mix(in srgb, var(--primary) 35%, transparent);
+  animation: pro-batch-pulse 2.4s ease-in-out infinite;
+}
+.pro-feature-card--wave .pro-feature-effect {
+  inset: 35px 28px auto;
+  height: 66px;
+  background: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 52%, transparent) 0 3px,
+    transparent 3px 11px
+  );
+  mask-image: linear-gradient(135deg, transparent 4%, black 24% 76%, transparent 96%);
+  animation: pro-wave 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+.pro-feature-card--wave .pro-feature-effect::after {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  border-top: 1px solid var(--border);
+}
+.pro-feature-card--pixels .pro-feature-effect {
+  opacity: 0.3;
+  background-image:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--primary) 35%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(color-mix(in srgb, var(--primary) 35%, transparent) 1px, transparent 1px);
+  background-size: 13px 13px;
+  mask-image: radial-gradient(circle at 74% 23%, black, transparent 47%);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: scale(0.94);
+}
+.pro-feature-card--pixels:hover .pro-feature-effect {
+  opacity: 0.75;
+  transform: scale(1);
+}
+.pro-free-promise {
+  margin-top: 23px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.pro-feature-card--scan .pro-feature-effect {
+  inset: 29px 28px auto auto;
+  width: 112px;
+  height: 76px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background:
+    linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--primary) 55%, transparent),
+        color-mix(in srgb, var(--primary) 55%, transparent)
+      )
+      16px 20px/8px 2px no-repeat,
+    linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--primary) 55%, transparent),
+        color-mix(in srgb, var(--primary) 55%, transparent)
+      )
+      16px 38px/8px 2px no-repeat,
+    linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--primary) 55%, transparent),
+        color-mix(in srgb, var(--primary) 55%, transparent)
+      )
+      16px 56px/8px 2px no-repeat,
+    linear-gradient(90deg, var(--border), var(--border)) 32px 20px/62px 1px no-repeat,
+    linear-gradient(90deg, var(--border), var(--border)) 32px 38px/50px 1px no-repeat,
+    linear-gradient(90deg, var(--border), var(--border)) 32px 56px/67px 1px no-repeat;
+}
+.pro-feature-card--scan .pro-feature-effect::after {
+  content: '';
+  position: absolute;
+  inset: 8px 7px auto;
+  height: 1px;
+  background: var(--primary);
+  box-shadow: 0 0 12px var(--primary);
+  animation: pro-scan 2.6s ease-in-out infinite;
+}
+.pro-feature-card--signal .pro-feature-effect {
+  inset: 25px 27px auto auto;
+  width: 92px;
+  height: 92px;
+  border: 1px solid color-mix(in srgb, var(--primary) 42%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 15px var(--card),
+    inset 0 0 0 16px var(--border);
+}
+.pro-feature-card--signal .pro-feature-effect::before {
+  content: '';
+  position: absolute;
+  inset: 34px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 65%, transparent);
+}
+.pro-feature-card--signal .pro-feature-effect::after {
+  content: '';
+  position: absolute;
+  inset: 22px;
+  border: 1px solid var(--primary);
+  border-radius: 50%;
+  animation: pro-signal 2.6s ease-out infinite;
+}
+.pro-feature-card--nodes .pro-feature-effect {
+  inset: 30px 27px auto auto;
+  width: 118px;
+  height: 76px;
+  background:
+    linear-gradient(28deg, transparent 48%, var(--border) 49% 51%, transparent 52%) 6px 18px/52px
+      44px no-repeat,
+    linear-gradient(-25deg, transparent 48%, var(--border) 49% 51%, transparent 52%) 57px 15px/54px
+      46px no-repeat;
+}
+.pro-feature-card--nodes .pro-feature-effect::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8% 72%, var(--primary) 0 4px, transparent 5px),
+    radial-gradient(
+      circle at 48% 20%,
+      color-mix(in srgb, var(--primary) 72%, transparent) 0 5px,
+      transparent 6px
+    ),
+    radial-gradient(
+      circle at 91% 68%,
+      color-mix(in srgb, var(--primary) 48%, transparent) 0 4px,
+      transparent 5px
+    );
+}
+.pro-feature-card--nodes .pro-feature-effect::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: pro-node-pulse 2.4s ease-in-out infinite;
+}
+.pro-feature-card--beam .pro-feature-effect {
+  inset: 29px 28px auto auto;
+  width: 112px;
+  height: 76px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.pro-feature-card--beam .pro-feature-effect::before {
+  content: '';
+  position: absolute;
+  left: 39px;
+  top: 21px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--primary) 55%, var(--border));
+  border-radius: 7px;
+  background: var(--card);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.pro-feature-card--beam .pro-feature-effect::after {
+  content: '';
+  position: absolute;
+  left: 55px;
+  top: 37px;
+  width: 72px;
+  height: 72px;
+  background: conic-gradient(
+    from -35deg,
+    color-mix(in srgb, var(--primary) 42%, transparent),
+    transparent 22% 100%
+  );
+  transform-origin: 0 0;
+  animation: pro-beam 4.8s linear infinite;
+}
+.pro-feature-card--seal {
+  grid-column: 1/-1;
+  min-height: 225px;
+  background:
+    radial-gradient(
+      440px circle at 90% 0,
+      color-mix(in srgb, var(--primary) 10%, transparent),
+      transparent 62%
+    ),
+    var(--card);
+}
+.pro-feature-card--seal .pro-feature-copy {
+  max-width: 620px;
+}
+.pro-feature-card--seal h3 {
+  margin-top: 76px;
+}
+.pro-feature-card--seal .pro-feature-effect {
+  inset: 27px 30px auto auto;
+  width: 96px;
+  height: 96px;
+  border: 1px solid color-mix(in srgb, var(--primary) 36%, var(--border));
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--primary) 34%, transparent) 0 5deg,
+    transparent 5deg 18deg
+  );
+  mask: radial-gradient(circle, transparent 0 31%, #000 33% 50%, transparent 52%);
+}
+.pro-feature-card--seal .pro-feature-effect::after {
+  content: '';
+  position: absolute;
+  inset: 22px;
+  border: 1px solid var(--primary);
+  border-radius: 50%;
+  animation: pro-seal 5s ease-in-out infinite;
+}
+@keyframes pro-batch-pulse {
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translateX(72px);
+    opacity: 1;
+  }
+}
+@keyframes pro-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pro-wave {
+  0%,
+  100% {
+    transform: scaleY(0.42);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 0.82;
+  }
+}
+@keyframes pro-scan {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(58px);
+    opacity: 1;
+  }
+}
+@keyframes pro-signal {
+  0% {
+    transform: scale(0.45);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+@keyframes pro-node-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.7);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.25);
+    opacity: 1;
+  }
+}
+@keyframes pro-beam {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pro-seal {
+  0%,
+  100% {
+    transform: scale(0.86);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.85;
+  }
+}
+@container pro-page (max-width:900px) {
+  .pro-plans {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@container pro-page (max-width:800px) {
+  .pro-benefits {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container pro-page (max-width:560px) {
+  .pro-page-content {
+    padding-inline: 18px;
+  }
+  .pro-plans,
+  .pro-benefits {
+    grid-template-columns: 1fr;
+  }
+  .pro-benefits article {
+    padding: 22px;
+  }
+  .pro-benefits h3 {
+    margin-top: 96px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pro-plan,
+  .pro-feature-card {
+    transition: none;
+  }
+  .pro-plan:hover,
+  .pro-feature-card:hover {
+    transform: none;
+  }
+  .pro-feature-card::before,
+  .pro-feature-effect {
+    transition: none !important;
+  }
+  .pro-feature-card--orbit .pro-feature-effect::after,
+  .pro-feature-card--lanes .pro-feature-effect::before,
+  .pro-feature-card--wave .pro-feature-effect,
+  .pro-feature-card--scan .pro-feature-effect::after,
+  .pro-feature-card--signal .pro-feature-effect::after,
+  .pro-feature-card--nodes .pro-feature-effect::after,
+  .pro-feature-card--beam .pro-feature-effect::after,
+  .pro-feature-card--seal .pro-feature-effect::after {
+    animation: none;
+  }
+  .pro-feature-card--lanes .pro-feature-effect::before {
+    transform: translateX(36px);
+    opacity: 0.8;
+  }
+  .pro-feature-card--wave .pro-feature-effect {
+    transform: scaleY(0.7);
+    opacity: 0.65;
+  }
+  .pro-feature-card--scan .pro-feature-effect::after {
+    transform: translateY(30px);
+    opacity: 0.75;
+  }
+  .pro-feature-card--signal .pro-feature-effect::after {
+    transform: scale(0.8);
+    opacity: 0.55;
+  }
+  .pro-feature-card--nodes .pro-feature-effect::after {
+    transform: translate(-50%, -50%);
+    opacity: 0.8;
+  }
+}

@@ -1,0 +1,184 @@
+.agent-workspace {
+  container-type: inline-size;
+}
+.agent-workspace-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.agent-workspace-header strong {
+  font-size: 13px;
+  letter-spacing: -0.015em;
+}
+.agent-workspace-state {
+  flex: 1;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.agent-workspace-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.agent-workspace-harnesses,
+.agent-workspace-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.agent-workspace-modes {
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 2px;
+}
+.agent-workspace-details {
+  flex-shrink: 0;
+  max-height: 140px;
+  overflow-y: auto;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.agent-workspace-feature-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.agent-workspace-source {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.agent-workspace-diagnostics {
+  max-height: 150px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.agent-workspace-chat {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 20px;
+}
+.agent-workspace-welcome {
+  max-width: 660px;
+  margin: 8px auto;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.agent-workspace-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+}
+.agent-workspace-presets button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--card));
+  text-align: left;
+  font-size: 12px;
+}
+.agent-workspace-presets button:hover {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 9%, var(--card));
+}
+.agent-workspace-presets button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.agent-workspace-message {
+  width: fit-content;
+  max-width: min(850px, 95%);
+  margin-bottom: 14px;
+  padding: 12px 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px 14px 14px 4px;
+  background: var(--card);
+}
+.agent-workspace-message.is-user {
+  margin-left: auto;
+  border-radius: 14px 14px 4px 14px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--card));
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--border));
+}
+.agent-workspace-speaker {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  margin-bottom: 5px;
+}
+.agent-workspace-message-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.agent-workspace-result {
+  display: block;
+  margin-top: 7px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.agent-workspace-composer {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border);
+}
+.agent-workspace-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  border-radius: 14px;
+}
+.agent-workspace-input:focus-within {
+  border-color: var(--ring);
+}
+.agent-workspace-input textarea {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  max-height: 100px;
+  resize: vertical;
+  padding: 4px;
+  outline: none;
+  font-size: 13px;
+  line-height: 1.6;
+  background: transparent;
+}
+.agent-workspace-hint {
+  margin-top: 5px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+@container (max-width: 600px) {
+  .agent-workspace-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .agent-workspace-chat {
+    padding: 12px;
+  }
+  .agent-workspace-state {
+    display: none;
+  }
+  .agent-workspace-header strong {
+    flex: 1;
+  }
+}

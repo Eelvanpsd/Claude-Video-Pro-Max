@@ -1,6 +1,6 @@
 # Claude Video Pro Max
 
-**A curated, annotated collection of eleven open-source repos for raising AI-made video quality (picture and sound) — plus a small kit of ready-to-use Remotion pieces distilled from them.**
+**A curated, annotated collection of twelve open-source repos for raising AI-made video quality (picture and sound) — plus a small kit of ready-to-use Remotion pieces distilled from them.**
 
 Built while upgrading a production pipeline of vertical history shorts (Remotion 4 + hand-written SVG art + local Kokoro narration, no paid APIs, no AI images). Every repo here was cloned, read and judged for that kind of pipeline: what it is, how to run it, which techniques actually move quality, what is free vs paid, and what its license lets you do.
 
@@ -10,7 +10,7 @@ git clone https://github.com/Eelvanpsd/Claude-Video-Pro-Max.git   # everything i
 
 ---
 
-## The eleven repos
+## The twelve repos
 
 | # | Repo | What it is | License | Free/local | Verdict | Deep dive |
 |---|---|---|---|---|---|---|
@@ -25,17 +25,18 @@ git clone https://github.com/Eelvanpsd/Claude-Video-Pro-Max.git   # everything i
 | 9 | [WordPress/openverse](https://github.com/WordPress/openverse) | Search engine + public API for openly licensed media; CC0 sound-effect sourcing with attribution metadata | MIT (media: own CC licences) | ✅ hosted API | ✅ Adopt (SFX sourcing) | [docs](docs/repos/09-openverse.md) |
 | 10 | [Leonxlnx/earshot](https://github.com/Leonxlnx/earshot) | "Ears for coding agents": describe/match/rank sounds, realness check, sync timeline, sound sheet, launch-film scorecard, MCP | MIT | ✅ CPU, local models | ✅ Adopt ears, ❌ skip forge (synthesis) | [docs](docs/repos/10-earshot.md) |
 | 11 | [Clipwing/skills › real-sfx](https://github.com/Clipwing/skills/tree/main/skills/real-sfx) | Skill that places real library SFX on exact frames: audible-start placement, voice-safe mix, tonal fit, mono check, critique | MIT scripts (uisfx sounds CC0) | ✅ | ✅ Adopt ideas (library mode only) | [docs](docs/repos/11-real-sfx.md) |
+| 12 | [debpalash/VoiceStudio](https://github.com/debpalash/VoiceStudio) | Local AI voice studio: ~20 TTS + ~10 ASR engines, cloning, voice design, dubbing, `[pause]` markers, room-tone pause fill, WhisperX word alignment, signal checks, MCP | AGPL-3.0 (default OmniVoice weights CC-BY-NC) | ✅ | 💡 Ideas + optional tool; ❌ not for monetised narration | [docs](docs/repos/12-VoiceStudio.md) |
 
 Each repo is included **in full** under [`repos/`](repos) — a copy of the commit that was reviewed, with its own license intact. Upstream URLs and commits: [`repos/SOURCES.md`](repos/SOURCES.md).
 
 ## What's in here
 
 ```
-repos/                    11 vendored repos (original code, original licenses) + SOURCES.md
-docs/repos/01…11-*.md     per-repo deep dive: architecture, run commands, techniques with file paths, free vs paid, what to adopt
+repos/                    12 vendored repos (original code, original licenses) + SOURCES.md
+docs/repos/01…12-*.md     per-repo deep dive: architecture, run commands, techniques with file paths, free vs paid, what to adopt
 docs/COMPARISON.md        side-by-side matrix: license, engine, transitions, motion, captions, audio, QA
 docs/ROADMAP.md           ideas ranked by quality gain per hour, with status
-docs/QUALITY-CHECKLIST.md pre-delivery gate: every concrete number from all eleven repos in one list
+docs/QUALITY-CHECKLIST.md pre-delivery gate: every concrete number from all twelve repos in one list
 kit/                      MIT, standalone Remotion pieces + QA tool built from the ideas
 ```
 
@@ -77,6 +78,7 @@ node kit/tools/contact-sheet.mjs out/video.mp4 --strip 12:12.8  # every frame of
 10. **Motion blur only where things snap**, never on text being read *(hyperframes, onetake)*.
 11. **Source SFX licence-first, then prove they are real** — CC0 via the Openverse API, `earshot realness` on every file *(openverse, earshot)*.
 12. **Place a sound by where it becomes audible**, not where its file starts; check it in mono *(real-sfx, earshot timeline)*.
+13. **Pauses are room tone, not digital silence**: fill sentence gaps with the take's own noise floor *(VoiceStudio)*.
 
 ## Licensing
 
@@ -84,6 +86,7 @@ node kit/tools/contact-sheet.mjs out/video.mp4 --strip 12:12.8  # every frame of
 - **openverse** code is MIT, but every media item it finds keeps its own Creative Commons licence — use CC0/PDM in monetised videos.
 - **real-sfx**: scripts are MIT per its README (the Clipwing repo has no top-level LICENSE); its bundled `uisfx` sounds are CC0.
 - **onetake** is non-commercial and **OpenMontage** is AGPLv3 — the kit re-implements *ideas* from them, it does not copy their code.
+- **VoiceStudio** app code is AGPL-3.0 (using the app and publishing its output is fine). Its default OmniVoice weights are **CC-BY-NC** and it adds an invisible AudioSeal watermark by default, so don't use its default engine on monetised videos. Ideas are re-implemented, not copied.
 - **hypit**: own-organisation use is fine; no multi-tenant SaaS or commercial redistribution; keep its name/logo in its CLI and reports.
 - Everything else in this repo (`docs/`, `kit/`, this README) is **MIT** — see [`LICENSE`](LICENSE).
 
@@ -91,4 +94,4 @@ node kit/tools/contact-sheet.mjs out/video.mp4 --strip 12:12.8  # every frame of
 
 ### Türkçe özet
 
-Video kalitesini (görüntü ve ses) yükseltmek için incelenen 11 açık kaynak repo: hepsinin tam içeriği `repos/` altında (kaynak ve commit listesi `repos/SOURCES.md`). Her biri için `docs/repos/` içinde detaylı analiz var (ne işe yarar, nasıl çalıştırılır, hangi teknikler kaliteyi artırır, ücretsiz mi ücretli mi, lisansı neye izin verir). `kit/` klasöründe bu repolardan çıkarılan, doğrudan kullanılabilir Remotion parçaları (çizgi titremesi, yırtık kâğıt geçişi, tarih "slam" efekti) ve ffmpeg kontrol aracı var. 9–11 ses tarafı: Openverse (CC0 ses efekti bulma), earshot (ajan için "kulak": ses tanıma, gerçek/sentetik kontrolü, senkron ölçümü) ve real-sfx (gerçek SFX'i doğru kareye, doğru seviyede yerleştirme). `docs/ROADMAP.md` sıradaki iyileştirmeleri, `docs/QUALITY-CHECKLIST.md` yayın öncesi kontrol listesini içeriyor.
+Video kalitesini (görüntü ve ses) yükseltmek için incelenen 12 açık kaynak repo: hepsinin tam içeriği `repos/` altında (kaynak ve commit listesi `repos/SOURCES.md`). Her biri için `docs/repos/` içinde detaylı analiz var (ne işe yarar, nasıl çalıştırılır, hangi teknikler kaliteyi artırır, ücretsiz mi ücretli mi, lisansı neye izin verir). `kit/` klasöründe bu repolardan çıkarılan, doğrudan kullanılabilir Remotion parçaları (çizgi titremesi, yırtık kâğıt geçişi, tarih "slam" efekti) ve ffmpeg kontrol aracı var. 9–11 ses tarafı: Openverse (CC0 ses efekti bulma), earshot (ajan için "kulak": ses tanıma, gerçek/sentetik kontrolü, senkron ölçümü) ve real-sfx (gerçek SFX'i doğru kareye, doğru seviyede yerleştirme). 12: VoiceStudio — yerel ses stüdyosu (çok sayıda TTS/ASR motoru, `[pause]` işaretleri, duraklamaları oda sesiyle doldurma, WhisperX ile ±10–30 ms kelime zamanlaması). Varsayılan OmniVoice ağırlıkları ticari olmayan lisanslı (CC-BY-NC), bu yüzden para kazanılan videolarda anlatım için kullanılmaz; fikirleri alınır. `docs/ROADMAP.md` sıradaki iyileştirmeleri, `docs/QUALITY-CHECKLIST.md` yayın öncesi kontrol listesini içeriyor.

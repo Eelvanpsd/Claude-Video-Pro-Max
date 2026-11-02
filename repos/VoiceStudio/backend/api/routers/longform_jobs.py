@@ -1,0 +1,257 @@
+"""Longform Job Library (PR 7).
+
+``GET /longform/jobs`` — list finished Audiobook + Story renders so the user can
+re-download them from the Projects view. The render itself (the m4b/mp3) already
+landed in ``OUTPUTS_DIR`` and is served at ``/audio/<output>``; here we just
+recover, from each finished job's persisted SSE tail, the output filename plus
+the chapter count and duration the ``done`` event carried.
+
+Pure recovery, no synthesis. Defensive by construction: a job whose ``done``
+event is missing or unparseable is skipped, never surfaced and never a 500.
+
+The work lives in :func:`build_longform_library`, a pure function over the
+job-store callables, so it's unit-testable without importing ``main`` (and the
+torch graph behind it).
+"""
+from __future__ import annotations
+
+import json
+import logging
+import math
+from typing import Callable, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from api.dependencies import require_loopback
+from core import job_store
+
+logger = logging.getLogger("omnivoice.longform_jobs")
+router = APIRouter()
+
+#: Job types this library surfaces. Both flow through the shared longform
+#: renderer (``_render_longform_sse``) and emit the same ``done`` event shape.
+_LONGFORM_TYPES = ("audiobook", "story")
+
+
+@router.delete("/longform/jobs/{job_id}", dependencies=[Depends(require_loopback)])
+def delete_longform_job(job_id: str) -> dict:
+    """Remove a finished library record and its events, preserving render audio."""
+    with job_store.db_conn() as conn:
+        # Take the write lock before checking status, so it cannot change between
+        # validation and deletion. Never remove live jobs or another job type.
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT type, status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if row is not None:
+            if row["type"] not in _LONGFORM_TYPES:
+                raise HTTPException(404, "Longform render not found")
+            if row["status"] != "done":
+                raise HTTPException(409, "Only completed renders can be removed")
+            conn.execute("DELETE FROM job_events WHERE job_id = ?", (job_id,))
+            conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+    return {"deleted": job_id}
+
+
+def _done_payload_from_events(events: list[dict]) -> Optional[dict]:
+    """Recover the final ``{"type": "done", ...}`` payload from a job's SSE tail.
+
+    Each row's ``payload`` is the JSON the renderer stored via
+    ``job_store.append_event(job_id, json.dumps(payload))``. We scan newest-first
+    and return the first parseable ``done`` event. Anything malformed is skipped
+    — this never raises.
+    """
+    for ev in reversed(events):
+        raw = ev.get("payload") if isinstance(ev, dict) else None
+        if not raw or not isinstance(raw, str):
+            continue
+        try:
+            obj = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(obj, dict) and obj.get("type") == "done":
+            return obj
+    return None
+
+
+def _coerce_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _coerce_float(value, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else default
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _clean_summary(raw) -> Optional[dict]:
+    """Reduce a stored render summary to a fixed, safe shape.
+
+    The summary lives in a persisted event, so nothing in it is trusted:
+    anything of the wrong type is dropped rather than passed to the client.
+    """
+    if not isinstance(raw, dict):
+        return None
+
+    def text(value) -> str:
+        # Only scalars become text; a dict or list would reach the client as its repr.
+        if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+            return ""
+        return str(value) if value else ""
+
+    voices = []
+    if isinstance(raw.get("voices"), list):
+        for v in raw["voices"]:
+            if isinstance(v, dict):
+                voices.append({"id": text(v.get("id")), "name": text(v.get("name"))})
+
+    speeds = []
+    if isinstance(raw.get("speeds"), list):
+        for v in raw["speeds"]:
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                continue
+            try:
+                number = float(v)
+            except OverflowError:
+                continue
+            if math.isfinite(number):
+                speeds.append(round(number, 2))
+
+    options = {}
+    if isinstance(raw.get("options"), dict):
+        for key, v in raw["options"].items():
+            if isinstance(v, (str, int, bool)) or (isinstance(v, float) and math.isfinite(v)):
+                options[str(key)] = v
+
+    titles = raw.get("chapter_titles")
+    return {
+        "engine": text(raw.get("engine")),
+        "voices": voices,
+        "language": text(raw.get("language")),
+        "format": text(raw.get("format")),
+        "lines": _coerce_int(raw.get("lines")),
+        "words": _coerce_int(raw.get("words")),
+        "speeds": speeds,
+        "options": options,
+        "chapter_titles": [t for t in titles if isinstance(t, str)] if isinstance(titles, list) else [],
+    }
+
+
+def build_longform_library(
+    list_jobs: Callable[..., list[dict]],
+    events_since: Callable[..., list[dict]],
+    *,
+    limit: int = 50,
+) -> list[dict]:
+    """Build the newest-first list of finished longform renders.
+
+    Pure over the two job-store callables so tests can pass them directly:
+
+    * ``list_jobs(status="done", types=(...), limit=...)`` → done longform jobs, newest-first.
+    * ``events_since(job_id)`` → that job's persisted SSE events.
+
+    Returns ``[{job_id, type, title?, output, duration_s, chapters,
+    created_at, summary?}]``. Jobs that aren't a longform type, or whose ``done`` event /
+    output filename can't be recovered, are silently skipped — the library only
+    ever lists things the user can actually re-download.
+    """
+    limit = max(1, min(_coerce_int(limit, 50), 500))
+    try:
+        # Filter types before limiting so newer dub jobs cannot hide finished
+        # books. Over-fetch still allows for missing or malformed done events.
+        rows = list_jobs(status="done", types=tuple(_LONGFORM_TYPES), limit=limit * 4)
+    except Exception:
+        # The route deliberately never 500s, but an unreadable job store is a
+        # real failure, not an empty library — log it loudly (error + stack),
+        # never silently.
+        logger.exception(
+            "longform library: list_jobs failed — returning an empty library "
+            "even though finished renders may exist"
+        )
+        return []
+
+    out: list[dict] = []
+    for row in rows or []:
+        if len(out) >= limit:
+            break
+        try:
+            job_type = row.get("type")
+            job_id = row.get("id")
+            if job_type not in _LONGFORM_TYPES or not job_id:
+                continue
+            try:
+                events = events_since(job_id)
+            except Exception:
+                logger.warning("longform library: events_since failed for %s",
+                               job_id, exc_info=True)
+                continue
+            done = _done_payload_from_events(events or [])
+            if not done:
+                continue
+            output = done.get("output")
+            if not output or not isinstance(output, str):
+                continue  # nothing to re-download → not worth listing
+
+            item = {
+                "job_id": job_id,
+                "type": job_type,
+                "output": output,
+                "duration_s": round(_coerce_float(done.get("duration_s")), 2),
+                "chapters": _coerce_int(done.get("chapters")),
+                "created_at": row.get("created_at"),
+            }
+            # Title is optional — prefer the done event, fall back to job meta.
+            title = done.get("title")
+            if not title:
+                meta_raw = row.get("meta_json")
+                if isinstance(meta_raw, str) and meta_raw:
+                    try:
+                        meta = json.loads(meta_raw)
+                        if isinstance(meta, dict):
+                            title = meta.get("title")
+                    except (ValueError, TypeError):
+                        title = None
+            if title:
+                item["title"] = title
+            summary = _clean_summary(done.get("summary"))
+            if summary is not None:
+                item["summary"] = summary
+            out.append(item)
+        except Exception:
+            # Per-row isolation: one bad row never sinks the whole list.
+            logger.warning("longform library: skipping unparseable job row",
+                           exc_info=True)
+            continue
+    return out
+
+
+@router.get("/longform/jobs")
+def longform_jobs(limit: int = Query(50, ge=1, le=500)) -> dict:
+    """Finished Audiobook + Story renders, newest-first, ready to re-download.
+
+    Each item's ``output`` is served at ``/audio/<output>``. Never 500s — on any
+    backend hiccup it returns an empty list rather than an error.
+
+    ``job_store`` is bound at module import (top of file), NOT re-imported
+    here at call time. A call-time ``from api.dependencies import require_loopback
+from core import job_store`` re-resolves
+    through ``sys.modules`` on every request — and several test suites purge
+    and re-import the whole ``core``/``services`` namespace under a
+    temporary OMNIVOICE_DATA_DIR (the ``isolated_db`` pattern,
+    tests/smoke/test_boot_smoke.py, …) without restoring the old module
+    tree. After one of those ran, the call-time import resolved a stale
+    module world whose DB_PATH pointed at a different SQLite file than the
+    one the test seeded through its collection-time bindings, so the library
+    came back without the seeded jobs (the order-dependent
+    test_route_handler_returns_jobs_envelope full-suite flake). The
+    module-level binding keeps this route in the same world as whoever
+    imported this module. Regression:
+    tests/test_longform_jobs.py::test_route_survives_leaked_module_world_purge.
+    """
+    jobs = build_longform_library(
+        job_store.list_jobs, job_store.events_since, limit=limit,
+    )
+    return {"jobs": jobs}

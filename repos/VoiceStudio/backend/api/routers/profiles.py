@@ -1,0 +1,1412 @@
+import asyncio
+import contextlib
+import hashlib
+import logging
+import os
+import re
+import uuid
+import weakref
+import time
+import shutil
+import threading
+from datetime import datetime, timezone
+from typing import Literal, Optional
+from fastapi import APIRouter, File, Form, UploadFile, HTTPException
+from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel
+
+from core.db import db_conn
+from core.config import VOICES_DIR, OUTPUTS_DIR
+from core import event_bus, voice_leases
+from core.scrub import scrub_text
+from core.personalities import get_personalities
+from omnivoice.utils.voice_design import heal_design_instruct, sanitize_instruct
+from core.media_types import media_upload_suffix
+from core.path_security import UnsafePath, resolve_within
+from services.reference_transcript import take_reference_transcript
+from core.profile_images import MAX_IMAGE_BYTES, normalize_portrait
+from starlette.datastructures import UploadFile as StarletteUploadFile
+from core.path_security import upload_suffix
+
+router = APIRouter()
+logger = logging.getLogger("omnivoice.profiles")
+
+
+def _profile_record(row):
+    result = dict(row)
+    image_path = _voices_path(f"{result['id']}.portrait.jpg")
+    result["image_url"] = (
+        f"/profiles/{result['id']}/image?v={os.stat(image_path).st_mtime_ns}"
+        if image_path and os.path.isfile(image_path) else None
+    )
+    # Cache-busting playback URL for the clip GET /profiles/{id}/audio serves.
+    # The stable /audio route is unchanged; the version token changes whenever
+    # the reference is replaced (#2282), so players and HTTP caches never keep
+    # the previous take. None when no sample exists yet (pending design voice).
+    audio_file = result.get("locked_audio_path") or result.get("ref_audio_path")
+    audio_path = _voices_path(str(audio_file)) if audio_file else None
+    result["audio_url"] = (
+        f"/profiles/{result['id']}/audio?v={os.stat(audio_path).st_mtime_ns}"
+        if audio_path and os.path.isfile(audio_path) else None
+    )
+    return result
+
+
+# Wall-clock bound on the best-effort transcript taken while a reference is
+# saved. A cold model load or a stalled network read must not hold the save
+# open (#2583); a late result still lands in transcribe_reference's content
+# cache, so the first generation with this voice reuses it.
+_REFERENCE_TRANSCRIBE_TIMEOUT_S = 60.0
+
+
+def _reference_transcribe_timeout() -> float:
+    try:
+        value = float(os.environ.get(
+            "OMNIVOICE_PROFILE_TRANSCRIBE_TIMEOUT_S", _REFERENCE_TRANSCRIBE_TIMEOUT_S,
+        ))
+    except (TypeError, ValueError):
+        return _REFERENCE_TRANSCRIBE_TIMEOUT_S
+    return value if value > 0 and value != float("inf") else _REFERENCE_TRANSCRIBE_TIMEOUT_S
+
+
+async def _auto_transcribe_reference(audio_path: str) -> str:
+    """Best-effort local transcript for a new reference clip, or "".
+
+    A matching transcript defines the boundary between the reference and the
+    requested line. Saving a blank transcript and waiting until the first
+    generation made that first take depend on the TTS model's internal ASR
+    fallback; short lines could then start with stray words from the
+    reference. Resolve it while the reference is saved so every synthesis,
+    including the first, uses stable conditioning. Local-only:
+    transcribe_reference considers only already-installed ASR/dictation models.
+    """
+    timeout = _reference_transcribe_timeout()
+    try:
+        from services.asr_backend import transcribe_reference
+
+        return (await asyncio.wait_for(
+            asyncio.to_thread(transcribe_reference, audio_path), timeout,
+        ) or "").strip()
+    except asyncio.TimeoutError:
+        logger.warning(
+            "reference transcription during profile save exceeded %.0fs; "
+            "saving without a transcript", timeout,
+        )
+        return ""
+    except Exception as exc:  # noqa: BLE001 — profile save remains usable
+        logger.warning("reference transcription during profile save failed: %s", exc)
+        return ""
+
+
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    ref_text: Optional[str] = None
+    instruct: Optional[str] = None
+    language: Optional[str] = None
+    personality: Optional[str] = None
+
+
+@router.get("/personalities")
+def list_personalities():
+    """Return built-in voice personality presets."""
+    return get_personalities()
+
+@router.get("/profiles")
+def list_profiles():
+    with db_conn() as conn:
+        rows = conn.execute("SELECT * FROM voice_profiles ORDER BY created_at DESC").fetchall()
+    return [_profile_record(r) for r in rows]
+
+_DESIGN_SEED = 42  # deterministic sample render, same as archetype previews
+
+
+@router.post("/profiles")
+async def create_profile(
+    name: str = Form(...),
+    ref_audio: Optional[UploadFile] = File(None),
+    ref_text: str = Form(""),
+    instruct: str = Form(""),
+    language: str = Form("Auto"),
+    seed: Optional[int] = Form(None),
+    personality: str = Form(""),
+    kind: str = Form("clone"),
+    vd_states: Optional[str] = Form(None),
+    design_recipe: Optional[str] = Form(None),
+    engine: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+):
+    """Create a voice profile (spec: docs/specs/voice-studio-unification.md §5).
+
+    kind='clone'  — requires `ref_audio` (the user's reference recording).
+    kind='design' — requires `vd_states` (JSON of category picks); the server
+                    renders a deterministic sample WAV with the submitted seed
+                    (42 when none, same path as archetype materialization) and
+                    stores it as the profile's reference so the voice identity
+                    is stable across runs.
+    """
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="A voice profile needs a name.")
+    if kind not in ("clone", "design"):
+        raise HTTPException(status_code=422, detail="kind must be 'clone' or 'design'")
+    if kind == "clone" and ref_audio is None:
+        raise HTTPException(status_code=422, detail="clone profiles require ref_audio")
+    stored_recipe = None
+    design_engine = "omnivoice"
+    if kind == "design":
+        if not (vd_states or "").strip():
+            raise HTTPException(status_code=422, detail="design profiles require vd_states")
+        import json as _json
+        try:
+            parsed = _json.loads(vd_states)
+            if not isinstance(parsed, dict):
+                raise ValueError("not an object")
+        except ValueError:
+            raise HTTPException(status_code=422, detail="vd_states must be a JSON object")
+        # Root-cause close for #983: a design profile must never be PERSISTED
+        # with a partial vd_states shape, regardless of which client (older
+        # frontend build, hand-edited payload, third-party API caller) created
+        # it — a missing category key crashes DesignMethodPanel's render on
+        # every future client that selects this profile. CATEGORY_ORDER is the
+        # same single source of truth the frontend's CATEGORIES keys mirror
+        # (core/describe_voice.py), so this can't drift from the picker.
+        from core.describe_voice import CATEGORY_ORDER
+        for _cat in CATEGORY_ORDER:
+            parsed.setdefault(_cat, "Auto")
+        vd_states = _json.dumps(parsed)
+        # An all-Auto design (every category left on "Auto") yields an empty
+        # instruct — that's still a valid, saveable voice: synthesis falls back
+        # to neutral instruct-only conditioning (see generation.py design path).
+        # Don't gate save on a non-empty instruct.
+        #
+        # Defence-in-depth against the "[object Object]" / freeform-prose poison
+        # (#550 #571 #594 #596): never persist an instruct the engine validator
+        # would reject. Sanitize the submitted instruct and, if it's unusable,
+        # rebuild the tags from vd_states — so the row is always generation-safe
+        # regardless of which frontend build saved it.
+        instruct = heal_design_instruct(instruct, parsed)
+        if design_recipe is not None:
+            # A native Voice Design prompt is metadata, NOT an OmniVoice
+            # instruct. Validate and keep the full recipe separately from
+            # legacy tags, so saving cannot discard unrecognised adjectives.
+            from api.routers.generation import _design_recipe_json
+            from services.tts_backend import get_backend_class, voice_design_support
+
+            validated = _design_recipe_json(design_recipe)
+            if validated is None:
+                raise HTTPException(status_code=422, detail="Invalid Voice Design recipe")
+            design_engine = engine or "omnivoice"
+            try:
+                backend_cls = get_backend_class(design_engine)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail="Unknown Voice Design engine") from exc
+            if voice_design_support(backend_cls) is False:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"{design_engine} cannot design a voice without reference audio",
+                )
+            recipe_data = _json.loads(validated)
+            recipe_data["engine"] = design_engine
+            stored_recipe = _json.dumps(recipe_data, ensure_ascii=False)
+    else:
+        # Clone-kind saves get the same server-side choke point (audit finding:
+        # this class — "Unsupported instruct items" 400s on every later use —
+        # recurred THREE times via clients that bypassed the frontend filter,
+        # and the save-time heal above was gated to design-kind). A clone
+        # profile has no vd_states to rebuild from, so this is sanitize-only:
+        # valid tags survive, prose/"[object Object]" is dropped.
+        instruct = sanitize_instruct(instruct)
+
+    profile_id = str(uuid.uuid4())[:8]
+    portrait = None
+    if isinstance(image, StarletteUploadFile):
+        portrait = normalize_portrait(await image.read(MAX_IMAGE_BYTES + 1))
+    portrait_path = os.path.join(VOICES_DIR, f"{profile_id}.portrait.jpg")
+
+    if kind == "clone":
+        ext = media_upload_suffix(ref_audio.filename)
+        if ext is None:
+            raise HTTPException(status_code=415, detail="Choose an audio or video file.")
+        audio_filename = f"{profile_id}{ext}"
+        audio_path = os.path.join(VOICES_DIR, audio_filename)
+        # Storage can be removed after startup; recover before persisting uploads.
+        os.makedirs(VOICES_DIR, exist_ok=True)
+        with open(audio_path, "wb") as f:
+            f.write(await ref_audio.read())
+        # A clone needs speech to copy: refuse a reference with no audio
+        # stream (a silent screen recording, a video-only WebM) at save time
+        # instead of failing every later generation with it.
+        from services.ffmpeg_utils import require_audio_stream
+        try:
+            await asyncio.to_thread(require_audio_stream, audio_path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.remove(audio_path)
+            raise
+        # Resolve the transcript at save time (see _auto_transcribe_reference).
+        if not ref_text.strip():
+            ref_text = await _auto_transcribe_reference(audio_path)
+        used_seed = seed
+    else:
+        # Saving must not start a cold model load or download (#2583).
+        # Preserve the identity sample for an already resident engine; otherwise
+        # use the existing pending-sample path, rendered on explicit preview.
+        from pathlib import Path
+        from api.routers.archetypes import _render_archetype_wav
+        from services.model_manager import get_model_status
+        audio_path = os.path.join(VOICES_DIR, f"{profile_id}.wav")
+        audio_filename = None
+        used_seed = seed if seed is not None else _DESIGN_SEED
+        # Never render native prose through OmniVoice even if its own model is loaded.
+        if design_engine == "omnivoice" and get_model_status()["loaded"]:
+            try:
+                await _render_archetype_wav(
+                    {
+                        "language": language,
+                        "sample_script": ref_text,  # optional custom sample line
+                        "instruct": instruct,
+                        "seed": used_seed,
+                    },
+                    Path(audio_path),
+                    allow_model_load=False,
+                )
+                audio_filename = f"{profile_id}.wav"
+            except Exception:
+                # OOM / inference failure — defer the sample, clearing partials.
+                logging.getLogger("omnivoice.profiles").info(
+                    "Design profile %s saved with sample pending — "
+                    "voice engine not ready; will render on preview", profile_id,
+                )
+                if os.path.exists(audio_path):
+                    with contextlib.suppress(OSError):
+                        os.remove(audio_path)
+
+    try:
+        if portrait:
+            os.makedirs(VOICES_DIR, exist_ok=True)
+            with open(portrait_path, "wb") as out:
+                out.write(portrait)
+        with db_conn() as conn:
+            conn.execute(
+                "INSERT INTO voice_profiles (id, name, ref_audio_path, ref_text, instruct, "
+                "language, seed, personality, kind, vd_states, design_recipe, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (profile_id, name, audio_filename, ref_text, instruct, language,
+                 used_seed, personality, kind, vd_states, stored_recipe, time.time())
+            )
+    except Exception:
+        if os.path.exists(portrait_path):
+            os.remove(portrait_path)
+        # Clean up orphaned audio file if DB insert fails
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        raise
+    event_bus.emit("profiles", {"action": "created", "id": profile_id})
+    return get_profile(profile_id)
+
+@router.get("/profiles/{profile_id}")
+def get_profile(profile_id: str):
+    """Full profile record for the voice profile page."""
+    with db_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM voice_profiles WHERE id = ?", (profile_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="That voice profile doesn't exist. It may have been deleted from another tab.",
+        )
+    return _profile_record(row)
+
+
+@router.get("/profiles/{profile_id}/image")
+def get_profile_image(profile_id: str):
+    get_profile(profile_id)
+    path = _voices_path(f"{profile_id}.portrait.jpg")
+    if not path or not os.path.isfile(path):
+        raise HTTPException(404, "Profile image not found")
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-cache"})
+
+
+@router.put("/profiles/{profile_id}/image")
+async def update_profile_image(profile_id: str, image: UploadFile = File(...)):
+    get_profile(profile_id)
+    path = _voices_path(f"{profile_id}.portrait.jpg")
+    if path is None:
+        raise HTTPException(404, "Profile not found")
+    portrait = normalize_portrait(await image.read(MAX_IMAGE_BYTES + 1))
+    os.makedirs(VOICES_DIR, exist_ok=True)
+    with open(path, "wb") as out:
+        out.write(portrait)
+    event_bus.emit("profiles", {"action": "updated", "id": profile_id})
+    return get_profile(profile_id)
+
+
+@router.put("/profiles/{profile_id}")
+def update_profile(profile_id: str, patch: ProfileUpdate):
+    """Partial update — only fields set on the payload are changed."""
+    # The input comparison and update hold the same SQLite write lock as
+    # _publish_design_preview: a concurrent render may commit first, or this
+    # edit may invalidate its snapshot, but neither can publish stale audio.
+    with db_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        existing = conn.execute(
+            "SELECT kind, instruct, ref_text, language FROM voice_profiles WHERE id = ?",
+            (profile_id,),
+        ).fetchone()
+        if not existing:
+            raise HTTPException(
+                status_code=404,
+                detail="That voice profile doesn't exist. It may have been deleted from another tab.",
+            )
+        fields = []
+        params = []
+        edited_instruct = None
+        for col in ("name", "ref_text", "instruct", "language", "personality"):
+            val = getattr(patch, col)
+            if val is None:
+                continue
+            if col == "name" and not val.strip():
+                raise HTTPException(status_code=400, detail="A voice profile needs a name.")
+            if col == "instruct":
+                # Never let an edit persist a validator-rejecting instruct
+                # (prose / "[object Object]"); keep only whitelist tags.
+                val = sanitize_instruct(val)
+                edited_instruct = val
+            fields.append(f"{col} = ?")
+            params.append(val.strip() if col in ("name", "language") else val)
+        if edited_instruct is not None and existing["kind"] == "design":
+            # A legacy tag editor cannot change a free-form recipe; a real
+            # instruction edit starts a new design instead of keeping old prose.
+            import json
+
+            from core.describe_voice import instruct_to_vd_states
+
+            fields.append("vd_states = ?")
+            params.append(json.dumps(instruct_to_vd_states(edited_instruct)))
+            if edited_instruct != (existing["instruct"] or ""):
+                fields.append("design_recipe = NULL")
+        if (
+            existing["kind"] == "design"
+            and edited_instruct is not None
+            and edited_instruct != (existing["instruct"] or "")
+        ):
+            # A genuine voice-design edit invalidates its prior sample.
+            # Transcript/language corrections must *not* discard a saved
+            # voice's reference audio. Pending renders still compare their
+            # captured ref_text/language snapshot before publication.
+            fields.append("ref_audio_path = NULL")
+        if not fields:
+            raise HTTPException(
+                status_code=400,
+                detail="PUT /profiles/{id} body contained no editable fields. Include at least one of: name, language, ref_text, instruct, personality.",
+            )
+        params.append(profile_id)
+        conn.execute(
+            f"UPDATE voice_profiles SET {', '.join(fields)} WHERE id = ?",
+            params,
+        )
+        row = conn.execute(
+            "SELECT * FROM voice_profiles WHERE id = ?", (profile_id,),
+        ).fetchone()
+    event_bus.emit("profiles", {"action": "updated", "id": profile_id})
+    return _profile_record(row)
+
+
+# Reference-clip uploads (#2282). Same formats the desktop picker offers plus
+# Opus; anything else is refused so a crafted filename can never choose the
+# on-disk extension (py/path-injection) or store a non-audio payload.
+_REF_AUDIO_TYPES = {
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".flac": "audio/flac",
+    ".ogg": "audio/ogg",
+    ".oga": "audio/ogg",
+    ".opus": "audio/ogg",
+    ".aac": "audio/aac",
+    ".webm": "audio/webm",
+}
+_REF_AUDIO_EXTS = frozenset(_REF_AUDIO_TYPES)
+_MIN_REF_AUDIO_BYTES = 1000  # same floor as consent recordings
+# A reference is at most a minute or so of speech; even uncompressed 192 kHz
+# stereo float stays far below this. Bounds memory and disk per request.
+_MAX_REF_AUDIO_BYTES = 128 * 1024 * 1024
+_UPLOAD_CHUNK = 1024 * 1024
+_DECODE_TIMEOUT_S = 30.0
+_DECODE_CONCURRENCY = 2
+_DECODE_SEMAPHORE: Optional[asyncio.Semaphore] = None
+# One replacement at a time per profile: overlapping uploads would otherwise
+# read the same previous paths and leave the losing clip unreferenced.
+_replace_locks: "weakref.WeakValueDictionary[str, asyncio.Lock]" = weakref.WeakValueDictionary()
+
+
+def _audio_media_type(filename: str) -> str:
+    """Content type for a stored clip, from its (allowlisted) extension."""
+    return _REF_AUDIO_TYPES.get(os.path.splitext(filename)[1].lower(), "audio/wav")
+
+
+def _sndfile_decodes(path: str) -> bool:
+    """True when libsndfile decodes real sample frames, not just a header."""
+    try:
+        import soundfile as sf
+
+        with sf.SoundFile(path) as clip:
+            return clip.samplerate > 0 and len(clip.read(4096, dtype="float32")) > 0
+    except Exception as exc:  # noqa: BLE001 — not a libsndfile format; try ffmpeg
+        logger.debug("libsndfile could not decode a replacement reference: %s", exc)
+        return False
+
+
+async def _ffmpeg_decodes(path: str) -> bool:
+    """True when ffmpeg decodes at least one audio sample from the file.
+
+    Decodes (bounded to the first second) instead of probing the header: a
+    truncated compressed clip can carry valid stream metadata and still have
+    no decodable frames. Browser MediaRecorder WebM has no duration header but
+    decodes fine. Missing ffmpeg or a failed run counts as not decodable.
+    """
+    from services.ffmpeg_utils import find_ffmpeg
+
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        logger.warning("ffmpeg is unavailable; cannot verify a replacement reference")
+        return False
+    try:
+        # One deadline covers waiting for a decode slot and the decode itself.
+        return await asyncio.wait_for(_decode_one_second(ffmpeg, path), _DECODE_TIMEOUT_S)
+    except Exception as exc:  # noqa: BLE001 — cannot verify; refuse the clip
+        logger.info("ffmpeg could not decode a replacement reference: %s", exc)
+        return False
+
+
+def _decode_slots() -> asyncio.Semaphore:
+    """Reference checks' own FFmpeg slots, separate from the export slots.
+
+    run_ffmpeg's shared slots can be held by long dub exports, so a check must
+    not queue there; its own small pool still caps concurrent decodes.
+    """
+    global _DECODE_SEMAPHORE
+    if _DECODE_SEMAPHORE is None:
+        _DECODE_SEMAPHORE = asyncio.Semaphore(_DECODE_CONCURRENCY)
+    return _DECODE_SEMAPHORE
+
+
+async def _decode_one_second(ffmpeg: str, path: str) -> bool:
+    """Decode the first second to PCM; the process never outlives this call."""
+    from services.ffmpeg_utils import spawn_subprocess
+
+    async with _decode_slots():
+        proc = await spawn_subprocess(
+            ffmpeg, "-nostdin", "-v", "error", "-i", path, "-map", "0:a:0",
+            "-t", "1", "-ac", "1", "-f", "s16le", "pipe:1",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, _ = await proc.communicate()
+        finally:
+            # Runs on timeout and on request cancellation as well: kill the
+            # decode and wait (boundedly) for it to exit before the slot frees.
+            if proc.returncode is None:
+                with contextlib.suppress(ProcessLookupError, OSError):
+                    proc.kill()
+                with contextlib.suppress(Exception):
+                    await asyncio.wait_for(proc.wait(), timeout=5)
+    return proc.returncode == 0 and len(stdout or b"") > 0
+
+
+async def _is_decodable_audio(path: str) -> bool:
+    """Require a positive decode before a clip replaces a voice's reference.
+
+    libsndfile covers WAV/FLAC/OGG/MP3 in-process; compressed browser formats
+    (WebM/M4A/AAC) fall through to ffmpeg. The previous reference is deleted
+    once the replacement commits, so an unverifiable clip is refused rather
+    than risk swapping a working voice for one no engine can read.
+    """
+    return _sndfile_decodes(path) or await _ffmpeg_decodes(path)
+
+
+def _voice_file_referenced(conn, filename: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM voice_profiles WHERE ref_audio_path=? OR locked_audio_path=? "
+        "OR consent_audio_path=? LIMIT 1",
+        (filename, filename, filename),
+    ).fetchone() is not None
+
+
+# A superseded reference/locked take is not deleted when the profile moves off
+# it: a render already running (audiobook, Stories, dub, batch) resolved the
+# voice's path once and re-reads that file for every segment. The file is
+# marked under voices/.retired/ instead and swept once the marker is older
+# than the grace period, no profile references it again and no running render
+# holds it (core.voice_leases).
+_RETIRED_DIRNAME = ".retired"
+_RETIRED_GRACE_S = 24 * 3600
+
+
+def _retire_voice_file(filename: Optional[str], *, keep: Optional[str] = None) -> None:
+    """Schedule a superseded voices/ file for a later sweep instead of deleting it."""
+    if not filename or filename == keep:
+        return
+    path = _voices_path(filename)
+    if not path or not os.path.isfile(path):
+        return
+    marker = os.path.join(VOICES_DIR, _RETIRED_DIRNAME, filename)
+    try:
+        os.makedirs(os.path.dirname(marker), exist_ok=True)
+        with open(marker, "a"):
+            pass
+        os.utime(marker, None)  # the grace period counts from this retirement
+    except OSError as exc:
+        logger.warning("could not mark superseded voice file for cleanup: %s", exc)
+
+
+def sweep_retired_voice_files(grace_s: float = _RETIRED_GRACE_S) -> int:
+    """Delete retired voices/ files whose grace period passed and that no
+    profile references any more. Returns how many files were removed."""
+    marker_dir = os.path.join(VOICES_DIR, _RETIRED_DIRNAME)
+    try:
+        markers = [e for e in os.scandir(marker_dir) if e.is_file()]
+    except OSError:
+        return 0
+    cutoff = time.time() - grace_s
+    removed = 0
+    with db_conn() as conn:
+        for marker in markers:
+            try:
+                if marker.stat().st_mtime > cutoff:
+                    continue
+            except OSError:
+                continue
+            path = None if _voice_file_referenced(conn, marker.name) else _voices_path(marker.name)
+            if path:
+                try:
+                    # A render still holding the take outlives any grace
+                    # period: keep the marker and retry on a later sweep.
+                    if not voice_leases.remove_if_unused(path):
+                        continue
+                    removed += 1
+                except FileNotFoundError:
+                    pass  # already gone; nothing left to retire
+                except OSError as exc:  # e.g. still open on Windows: retry next sweep
+                    logger.warning("could not remove retired voice file: %s", exc)
+                    continue
+            with contextlib.suppress(OSError):
+                os.remove(marker.path)
+    return removed
+
+
+async def _sweep_retired_off_loop() -> None:
+    """Run the retired-file sweep after a retirement, outside any lock or DB
+    transaction and off the event loop. Each retirement triggers one, so the
+    retired set stays bounded on a long-running server, not only at startup."""
+    try:
+        await asyncio.to_thread(sweep_retired_voice_files)
+    except Exception:
+        logger.warning("retired voice sweep failed", exc_info=True)
+
+
+def _remove_voice_file(filename: Optional[str], *, keep: str) -> None:
+    """Delete a superseded voices/ file unless it is still referenced."""
+    if not filename or filename == keep:
+        return
+    with db_conn() as conn:
+        shared = _voice_file_referenced(conn, filename)
+    path = None if shared else _voices_path(filename)
+    if path and os.path.isfile(path):
+        try:
+            os.remove(path)
+        except OSError as exc:
+            logger.warning("could not remove superseded voice file: %s", exc)
+
+
+def _replacement_fields(
+    name: Optional[str], instruct: Optional[str], language: Optional[str],
+    personality: Optional[str],
+) -> "tuple[Optional[str], Optional[str], Optional[str], Optional[str]]":
+    """Normalized profile edits saved with the new clip; None keeps a column."""
+    if name is not None and not name.strip():
+        raise HTTPException(status_code=400, detail="A voice profile needs a name.")
+    return (
+        name.strip() if name is not None else None,
+        sanitize_instruct(instruct) if instruct is not None else None,
+        language.strip() if language is not None else None,
+        personality,
+    )
+
+
+# Static statement: optional edits use COALESCE(?, column) so no SQL is built
+# from strings. A legacy row with a NULL kind is a clone, as the read treats it.
+_REPLACE_AUDIO_SQL = (
+    "UPDATE voice_profiles SET ref_audio_path=?, ref_text=?, "
+    "name=COALESCE(?, name), instruct=COALESCE(?, instruct), "
+    "language=COALESCE(?, language), personality=COALESCE(?, personality), "
+    "locked_audio_path='', is_locked=0, seed=NULL, "
+    "verified_own_voice=0, consent_text='', consent_audio_path='', "
+    "consent_recorded_at=NULL, consent_basis='', consent_attested_at=NULL "
+    "WHERE id=? AND COALESCE(kind, 'clone')='clone' AND ref_audio_path IS ?"
+)
+
+
+async def _save_upload(upload: UploadFile, dest: str) -> int:
+    """Stream an upload to ``dest`` with a size cap; returns bytes written."""
+    total = 0
+    with open(dest, "wb") as out:
+        while chunk := await upload.read(_UPLOAD_CHUNK):
+            total += len(chunk)
+            if total > _MAX_REF_AUDIO_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail="That recording is too large for a voice reference. "
+                    "Trim it to under a minute and try again.",
+                )
+            out.write(chunk)
+    return total
+
+
+@router.put("/profiles/{profile_id}/audio")
+async def replace_profile_audio(
+    profile_id: str,
+    ref_audio: UploadFile = File(...),
+    ref_text: Optional[str] = Form(None),
+    name: Optional[str] = Form(None),
+    instruct: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
+    personality: Optional[str] = Form(None),
+):
+    """Replace a saved clone's reference clip in place (#2282).
+
+    The profile keeps its id, portrait and history. Optional ``name``,
+    ``instruct``, ``language`` and ``personality`` are saved in the same
+    UPDATE, so an editor save commits every change or none. The clip is
+    written under a NEW versioned filename (``{id}-{token}{ext}``) rather
+    than overwritten: engine prompt caches, prepared-reference caches and
+    chapter render caches are keyed by the reference path, so a new name
+    invalidates all of them at once. Because the new clip may be a different
+    speaker, a locked take and own-voice consent no longer describe this voice
+    and are cleared. The previous files are removed only after the database
+    commits; any failure before that removes the new file instead.
+    """
+    not_found = HTTPException(
+        status_code=404,
+        detail="That voice profile doesn't exist. It may have been deleted from another tab.",
+    )
+    if not _PROFILE_ID_RE.fullmatch(profile_id or ""):
+        raise not_found
+    ext = os.path.splitext(ref_audio.filename or "")[1].lower()
+    if ext not in _REF_AUDIO_EXTS:
+        raise HTTPException(
+            status_code=415,
+            detail="Choose a supported audio file: WAV, MP3, M4A, FLAC, OGG, Opus, AAC, or WebM.",
+        )
+    edits = _replacement_fields(name, instruct, language, personality)
+    lock = _replace_locks.get(profile_id)
+    if lock is None:
+        lock = _replace_locks[profile_id] = asyncio.Lock()
+    async with lock:
+        with db_conn() as conn:
+            row = conn.execute(
+                "SELECT kind, ref_audio_path, locked_audio_path, consent_audio_path "
+                "FROM voice_profiles WHERE id=?",
+                (profile_id,),
+            ).fetchone()
+        if not row:
+            raise not_found
+        if (row["kind"] or "clone") != "clone":
+            raise HTTPException(
+                status_code=409,
+                detail="Designed voices are defined by their recipe, not a recorded sample. "
+                "Edit the voice's traits in Voice Design instead.",
+            )
+        new_filename = f"{profile_id}-{uuid.uuid4().hex[:8]}{ext}"
+        new_path = _voices_path(new_filename)
+        if new_path is None:  # profile_id is charset-checked above; belt and braces
+            raise not_found
+        os.makedirs(VOICES_DIR, exist_ok=True)
+        tmp_path = f"{new_path}.part"
+        try:
+            if await _save_upload(ref_audio, tmp_path) < _MIN_REF_AUDIO_BYTES:
+                raise HTTPException(
+                    status_code=422, detail="The reference recording is empty or too short.",
+                )
+            os.replace(tmp_path, new_path)
+            if not await _is_decodable_audio(new_path):
+                # A video-only WebM decodes to nothing because it has no audio
+                # stream at all; say that rather than "could not be read".
+                from services.ffmpeg_utils import require_audio_stream
+                await asyncio.to_thread(require_audio_stream, new_path)
+                raise HTTPException(
+                    status_code=422,
+                    detail="That file could not be read as audio. Choose another recording.",
+                )
+            text = (ref_text or "").strip() or await _auto_transcribe_reference(new_path)
+            with db_conn() as conn:
+                # Compare-and-swap on the clip read above, so a writer outside
+                # this process can never be overwritten with its file orphaned.
+                cur = conn.execute(
+                    _REPLACE_AUDIO_SQL,
+                    (new_filename, text, *edits, profile_id, row["ref_audio_path"]),
+                )
+                if cur.rowcount == 0:
+                    still_there = conn.execute(
+                        "SELECT 1 FROM voice_profiles WHERE id=?", (profile_id,),
+                    ).fetchone()
+                    if not still_there:  # deleted while the upload ran
+                        raise not_found
+                    raise HTTPException(
+                        status_code=409,
+                        detail="This voice changed while the new sample was uploading. "
+                        "Reopen it and try again.",
+                    )
+                updated = conn.execute(
+                    "SELECT * FROM voice_profiles WHERE id=?", (profile_id,),
+                ).fetchone()
+        except BaseException:
+            for leftover in (tmp_path, new_path):
+                with contextlib.suppress(OSError):
+                    os.remove(leftover)
+            raise
+        # Render inputs are retired (a running render may still read them);
+        # the consent recording is never one, so it goes now.
+        for column in ("ref_audio_path", "locked_audio_path"):
+            _retire_voice_file(row[column], keep=new_filename)
+        _remove_voice_file(row["consent_audio_path"], keep=new_filename)
+    await _sweep_retired_off_loop()
+    event_bus.emit("profiles", {"action": "updated", "id": profile_id})
+    return _profile_record(updated)
+
+
+@router.get("/profiles/{profile_id}/usage")
+def get_profile_usage(profile_id: str):
+    """Where has this voice been used? Synth-history + segment counts per project."""
+    with db_conn() as conn:
+        synth_rows = conn.execute(
+            "SELECT id, text, audio_path, created_at, generation_time "
+            "FROM generation_history WHERE profile_id = ? "
+            "ORDER BY created_at DESC LIMIT 20",
+            (profile_id,),
+        ).fetchall()
+        synth_total = conn.execute(
+            "SELECT COUNT(*) AS n FROM generation_history WHERE profile_id = ?",
+            (profile_id,),
+        ).fetchone()["n"]
+
+    # Dub project usage is harder — profile_id lives inside state_json.segments[].profile_id.
+    # We scan the persisted state blob; for tens of projects this is fine.
+    import json
+    project_hits: list[dict] = []
+    with db_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, name, updated_at, state_json FROM studio_projects ORDER BY updated_at DESC"
+        ).fetchall()
+    for r in rows:
+        try:
+            state = json.loads(r["state_json"] or "{}")
+        except Exception:
+            continue
+        if not isinstance(state, dict):
+            continue
+        # Current desktop snapshots use dubSegments. An explicit empty list
+        # supersedes legacy segments retained in an older snapshot.
+        segs = state.get("dubSegments", state.get("segments", []))
+        if not isinstance(segs, list):
+            continue
+        n = sum(1 for s in segs if isinstance(s, dict) and s.get("profile_id") == profile_id)
+        if n:
+            project_hits.append({
+                "project_id": r["id"],
+                "project_name": r["name"],
+                "segment_count": n,
+                "updated_at": r["updated_at"],
+            })
+
+    return {
+        "synth_recent": [dict(r) for r in synth_rows],
+        "synth_total": synth_total,
+        "projects": project_hits,
+        "project_total_segments": sum(p["segment_count"] for p in project_hits),
+    }
+
+
+# profile_id is a request path param and the audio filename derives from it, so
+# constrain it to the generated-id charset (no separators / `..` possible) before
+# any path use, and read only a *direct child* of VOICES_DIR — os.path.basename()
+# strips any directory component (a path-injection / CWE-22 barrier).
+_PROFILE_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+@router.get("/profiles/{profile_id}/audio")
+async def get_profile_audio(profile_id: str):
+    """Serve a saved voice sample or lazily render a pending designed voice.
+
+    Profile IDs and stored filenames are confined to VOICES_DIR; concurrent
+    sample requests share a single synthesis job and never expose partial WAVs.
+    """
+    if not _PROFILE_ID_RE.fullmatch(profile_id or ""):
+        return Response("Profile not found", status_code=404)
+    with db_conn() as conn:
+        row = conn.execute(
+            # Native free-form rendering needs design_recipe, vd_states and
+            # lock flags in addition to the legacy preview fields.
+            "SELECT * FROM voice_profiles WHERE id=?",
+            (profile_id,),
+        ).fetchone()
+    if not row:
+        return Response("Profile not found", status_code=404)
+    audio_file = row["locked_audio_path"] or row["ref_audio_path"]
+    if not audio_file:
+        # A design profile saved before the engine was ready (issue #476) has no
+        # identity sample yet. Render it lazily now — the sample is deterministic
+        # for the stored seed, so a deferred render matches a save-time one.
+        rendered = await _materialize_design_sample(profile_id, row)
+        if rendered is None:
+            return Response("No audio available", status_code=404)
+        audio_file = rendered
+    # CWE-22: resolve the DB-stored filename strictly inside VOICES_DIR via the
+    # shared guard — _voices_path() applies the os.path.basename() barrier plus
+    # symlink-resolved containment (same path the consent endpoint trusts).
+    audio_path = _voices_path(str(audio_file))
+    if audio_path is None or not os.path.exists(audio_path):
+        return Response("Audio file missing", status_code=404)
+    return FileResponse(audio_path, media_type=_audio_media_type(audio_path))
+
+
+async def _render_native_design_sample(row, audio_path, engine_id: str) -> None:
+    """Create a pending sample with the same free-form engine as the profile.
+
+    Only the OmniVoice tag engine uses archetypes' specialised renderer.
+    A native free-form profile must never be rendered with OmniVoice instead:
+    that either rejects its description or stores a completely different voice.
+    """
+    from pathlib import Path
+    from api.routers.archetypes import _FALLBACK_SCRIPT
+    from api.routers.generation import _safe_torchaudio_save, run_on_gpu_pool_guarded
+    from core.audio_validation import is_playable_wav
+    from api.routers.engines import _get_engine_instance
+    from services import gpu_gateway
+    from services.engine_memory import evict_other_tts_engines
+    from services.model_manager import generate_timeout_s
+    from services.tts_backend import get_backend_class
+    from services.voice_design_profiles import profile_instruct
+    from services.performance_profiles import tts_defaults
+
+    backend_cls = get_backend_class(engine_id)
+    ready, reason = backend_cls.is_available()
+    if not ready:
+        raise RuntimeError(f"{engine_id} is not installed or ready: {reason}")
+    # Match /generate's single-active-engine and cached-instance lifecycle:
+    # a preview must not spawn another multi-GB model beside a warm engine.
+    await evict_other_tts_engines(engine_id)
+    backend = _get_engine_instance(backend_cls)
+    await gpu_gateway.prewarm(backend=backend, engine=engine_id)
+    script = (row["ref_text"] or "").strip() or _FALLBACK_SCRIPT
+    instruct = profile_instruct(row, engine_id)
+    language = row["language"] or None
+    steps = tts_defaults(engine_id).get("num_step", 10)
+    seed = row["seed"] if row["seed"] is not None else _DESIGN_SEED
+
+    def render():
+        """Render the pending identity with the authoring engine and seed."""
+        import torch
+        torch.manual_seed(seed)
+        extra = (
+            {"seed": seed}
+            if getattr(backend, "supports_generation_seed", False) else {}
+        )
+        return backend.generate(
+            script, ref_audio=None, ref_text=None, instruct=instruct,
+            language=language, num_step=steps, guidance_scale=2.0, speed=1.0,
+            **extra,
+        )
+
+    audio = await run_on_gpu_pool_guarded(
+        render, what="Native design profile sample",
+        timeout=generate_timeout_s(script, engine=backend),
+    )
+    # Keep synthetic profile samples on the same AudioSeal provenance path
+    # as OmniVoice's archetype renderer. Never watermark user reference clips.
+    from services.watermark import mark_synthetic_async
+    audio = await mark_synthetic_async(
+        audio, backend.sample_rate, context="profiles.native_design",
+        timeout=generate_timeout_s(""),
+    )
+    path = Path(audio_path)
+    tmp = path.with_name(f".{path.stem}-{uuid.uuid4().hex}.wav")
+    try:
+        _safe_torchaudio_save(str(tmp), audio, backend.sample_rate)
+        if not is_playable_wav(tmp):
+            raise RuntimeError("Voice engine generated an invalid preview sample")
+        os.replace(tmp, path)
+    finally:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+
+
+# Only these fields determine the identity of a pending designed-voice WAV.
+# A renamed profile can keep rendering; changing its script, language, seed,
+# design settings, or lock/reference must invalidate the original request.
+_DESIGN_PREVIEW_FIELDS = (
+    "kind", "instruct", "vd_states", "design_recipe", "ref_text", "language",
+    "seed", "is_locked", "locked_audio_path", "ref_audio_path",
+)
+
+
+def _design_preview_inputs(row) -> tuple:
+    """Snapshot every field that can affect the pending design preview."""
+    return tuple(row[column] for column in _DESIGN_PREVIEW_FIELDS)
+
+
+def _publish_design_preview(profile_id: str, expected: tuple, staged, target, filename: str) -> None:
+    """Publish a completed preview only if its saved voice has not changed.
+
+    Both the row comparison and the atomic file install run while SQLite owns
+    its write lock. An editor cannot clear or replace the profile in between.
+    A different worker's preview is rejected once the reference is committed.
+    Files are rolled back if the database write or commit fails.
+    """
+    # The same in-process file lock used by reference/consent swaps protects
+    # the canonical WAV, while SQLite's write lock serializes other workers.
+    with _voice_file_lock, db_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        current = conn.execute(
+            "SELECT * FROM voice_profiles WHERE id=?", (profile_id,),
+        ).fetchone()
+        if (
+            current is None or current["kind"] != "design"
+            or current["ref_audio_path"]
+            or _design_preview_inputs(current) != expected
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="This voice profile changed while its preview was rendering. Retry the preview.",
+            )
+
+        restore, finalize = _install_staged(str(staged), str(target))
+        try:
+            conn.execute(
+                "UPDATE voice_profiles SET ref_audio_path=? WHERE id=?",
+                (filename, profile_id),
+            )
+            # Commit *before* leaving the protected section, so a failed
+            # commit can restore the previous WAV (DB and file stay in sync).
+            conn.commit()
+        except BaseException:
+            restore()
+            raise
+    finalize()
+
+
+async def _materialize_design_sample(profile_id: str, row) -> Optional[str]:
+    """Render a design profile's pending identity sample on first request.
+
+    Returns the stored filename on success, or None for a non-design row.
+    A changed or deleted profile raises HTTPException(409) without publishing
+    the stale WAV; an unavailable engine raises HTTPException(503). Saving the
+    profile itself never requires the engine to be installed or loaded.
+    """
+    try:
+        kind = row["kind"]
+    except (KeyError, IndexError):
+        kind = "clone"
+    if kind != "design":
+        return None
+
+    from pathlib import Path
+    from api.routers.archetypes import _render_once, _render_wav_atomic
+
+    audio_filename = f"{profile_id}.wav"
+    # CWE-22: resolve under VOICES_DIR via the shared basename + containment
+    # guard before rendering (rejects any escape).
+    audio_path = _voices_path(audio_filename)
+    if audio_path is None:
+        raise HTTPException(status_code=400, detail="invalid profile identifier")
+
+    expected = _design_preview_inputs(row)
+    # Distinct design revisions must not join a stale in-flight _render_once
+    # task. Identical requests still share a single expensive GPU render.
+    render_key = f"{audio_path}:{hashlib.sha256(repr(expected).encode('utf-8')).hexdigest()}"
+
+    async def _materialize() -> None:
+        """Render into staging, then publish only if the design is still current."""
+        from services.voice_design_profiles import recipe_engine
+
+        staged = Path(audio_path).with_name(
+            f".{profile_id}-preview-{uuid.uuid4().hex}.wav"
+        )
+        try:
+            engine_id = recipe_engine(row)
+            if engine_id == "omnivoice":
+                await _render_wav_atomic(
+                    {
+                        "language": row["language"] or "Auto",
+                        "sample_script": row["ref_text"] or "",
+                        "instruct": row["instruct"] or "",
+                        "seed": row["seed"],
+                    },
+                    staged,
+                    prefix=f".{profile_id}-",
+                )
+            else:
+                await _render_native_design_sample(row, staged, engine_id)
+            _publish_design_preview(
+                profile_id, expected, staged, Path(audio_path), audio_filename,
+            )
+        finally:
+            # Stale, cancelled and failed renders must not leave a playable
+            # orphan that a future version could mistake for its own sample.
+            with contextlib.suppress(OSError):
+                staged.unlink()
+
+    try:
+        await _render_once(render_key, _materialize)
+    except HTTPException:
+        # A concurrent profile edit is a 409, not an unavailable engine.
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The voice engine isn't ready yet, so this designed voice's "
+                "preview sample can't be rendered. Finish setup / download a "
+                f"model, then try again. ({e})"
+            ),
+        ) from e
+    return audio_filename
+
+# Serializes the lock/unlock/consent file swaps so one request's cleanup can
+# never unlink audio another request just installed.
+_voice_file_lock = threading.RLock()
+
+
+def _install_staged(staged: str, target: str):
+    """Move ``staged`` onto ``target``, keeping any previous ``target`` as a
+    ``.bak`` so a later failure can put the old audio back.
+
+    Returns ``(restore, finalize)``: ``restore()`` undoes the install (old
+    file back, or the new file removed); ``finalize()`` drops the backup once
+    the database row that references ``target`` has committed."""
+    backup = None
+    if os.path.exists(target):
+        backup = f"{target}.bak"
+        os.replace(target, backup)
+    try:
+        os.replace(staged, target)
+    except BaseException:
+        if backup:
+            with contextlib.suppress(OSError):
+                os.replace(backup, target)
+        raise
+
+    def restore() -> None:
+        with contextlib.suppress(OSError):
+            if backup:
+                os.replace(backup, target)
+            else:
+                os.remove(target)
+
+    def finalize() -> None:
+        if backup:
+            with contextlib.suppress(OSError):
+                os.remove(backup)
+
+    return restore, finalize
+
+
+@router.post("/profiles/{profile_id}/lock")
+async def lock_profile(
+    profile_id: str,
+    history_id: str = Form(...),
+    seed: Optional[int] = Form(None),
+):
+    with _voice_file_lock, db_conn() as conn:
+        profile = conn.execute("SELECT * FROM voice_profiles WHERE id=?", (profile_id,)).fetchone()
+        if not profile:
+            raise HTTPException(
+                status_code=404,
+                detail="Voice profile not found. It may have been deleted from another window — refresh the sidebar to see the current list.",
+            )
+
+        history = conn.execute("SELECT * FROM generation_history WHERE id=?", (history_id,)).fetchone()
+        if not history or not history["audio_path"]:
+            raise HTTPException(status_code=404, detail="History item not found or has no audio")
+
+        try:
+            src_path = resolve_within(OUTPUTS_DIR, history["audio_path"])
+        except UnsafePath as exc:
+            raise HTTPException(status_code=400, detail="Invalid history audio path") from exc
+        if not src_path.is_file():
+            raise HTTPException(status_code=404, detail="Audio file not found on disk")
+
+        # Every lock gets a fresh filename: longform caches key a voice by its
+        # reference path, so overwriting one fixed `<id>_locked.wav` let a
+        # re-locked profile with the same text/seed replay the previous take's
+        # cached audio (#2535). The superseded take is retired after commit,
+        # not deleted, so a render still reading it keeps working.
+        previous_locked = profile["locked_audio_path"]
+        locked_filename = f"{profile_id}_locked-{uuid.uuid4().hex[:8]}.wav"
+        locked_path = _voices_path(locked_filename)
+        if locked_path is None:
+            raise HTTPException(status_code=400, detail="Invalid profile id")
+        # Install the take first (previous one kept as a backup), then point
+        # the row at it; any failure puts the previous take back so the row
+        # and its audio never disagree.
+        staged_path = f"{locked_path}.part"
+        restore = None
+        try:
+            shutil.copy2(str(src_path), staged_path)
+            restore, finalize = _install_staged(staged_path, locked_path)
+
+            # Generation pairs the locked take with this text as its
+            # reference transcript, so it must be exactly what the take says:
+            # the whole text without script markup, or empty (transcribe the
+            # take) when the history row may hold a cut prefix (#3062).
+            ref_text = take_reference_transcript(history["text"])
+            # A design voice's saved seed is its identity (#3254): locking must
+            # not replace it with the take's seed, or unlocking would lose it.
+            lock_seed = seed
+            if profile["kind"] == "design" and profile["seed"] is not None:
+                lock_seed = profile["seed"]
+
+            conn.execute(
+                "UPDATE voice_profiles SET locked_audio_path=?, seed=?, is_locked=1, ref_text=? WHERE id=?",
+                (locked_filename, lock_seed, ref_text, profile_id)
+            )
+            conn.commit()
+        except BaseException:
+            if restore is not None:
+                restore()
+            raise
+        finally:
+            with contextlib.suppress(OSError):
+                os.remove(staged_path)
+        finalize()
+    # Only after the row points at the new take; shared/referenced files stay.
+    _retire_voice_file(previous_locked, keep=locked_filename)
+    await _sweep_retired_off_loop()
+    event_bus.emit("profiles", {"action": "locked", "id": profile_id})
+    return {"locked": True, "profile_id": profile_id, "locked_audio_path": locked_filename}
+
+@router.post("/profiles/{profile_id}/unlock")
+async def unlock_profile(profile_id: str):
+    with _voice_file_lock:
+        with db_conn() as conn:
+            profile = conn.execute("SELECT * FROM voice_profiles WHERE id=?", (profile_id,)).fetchone()
+            if not profile:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Voice profile not found. It may have been deleted from another window — refresh the sidebar to see the current list.",
+                )
+
+            conn.execute(
+                "UPDATE voice_profiles SET locked_audio_path='', "
+                "seed=CASE WHEN kind='design' THEN seed ELSE NULL END, is_locked=0 WHERE id=?",
+                (profile_id,)
+            )
+        # Retire only after the row change committed (a rolled-back unlock must
+        # keep its locked take); a render still reading it keeps working.
+        _retire_voice_file(profile["locked_audio_path"])
+    await _sweep_retired_off_loop()
+    event_bus.emit("profiles", {"action": "unlocked", "id": profile_id})
+    return {"unlocked": True, "profile_id": profile_id}
+
+# ── Consent lock (parity program Wave 0.2) ─────────────────────────────────
+#
+# A profile becomes "verified own voice" when its owner records themselves
+# reading a consent statement. The recording is provenance, not a voiceprint
+# check — agentic features and gallery sharing gate on the flag; plain local
+# synthesis never does. Spec: docs/competitive-analysis.md Action 22.
+
+_MIN_CONSENT_AUDIO_BYTES = 1000  # same floor as the frontend recorder
+
+# Upload filename extension whitelist — anything else falls back to .wav so a
+# crafted filename can never influence the on-disk path (py/path-injection).
+_CONSENT_EXT_RE = re.compile(r"^\.[A-Za-z0-9]{1,8}$")
+
+
+def _voices_path(filename: str) -> Optional[str]:
+    """Resolve a DB-stored audio filename strictly inside VOICES_DIR.
+
+    Rejects anything that isn't a bare filename or that escapes the voices
+    directory after symlink resolution. Returns None instead of raising so
+    cleanup paths can simply skip bad values.
+    """
+    if not filename or os.path.basename(filename) != filename:
+        return None
+    root = os.path.realpath(VOICES_DIR)
+    path = os.path.realpath(os.path.join(root, filename))
+    if not path.startswith(root + os.sep):
+        return None
+    return path
+
+
+@router.post("/profiles/{profile_id}/consent")
+async def record_consent(
+    profile_id: str,
+    consent_audio: UploadFile = File(...),
+    consent_text: str = Form(...),
+):
+    if not consent_text.strip():
+        raise HTTPException(status_code=422, detail="consent_text must not be empty")
+    data = await consent_audio.read()
+    if len(data) < _MIN_CONSENT_AUDIO_BYTES:
+        raise HTTPException(status_code=422, detail="consent recording is too short")
+
+    with db_conn() as conn:
+        row = conn.execute(
+            "SELECT id, consent_audio_path FROM voice_profiles WHERE id=?", (profile_id,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    ext = upload_suffix(consent_audio.filename)
+    if not ext or not _CONSENT_EXT_RE.fullmatch(ext):
+        ext = ".wav"
+    audio_filename = f"{profile_id}_consent{ext}"
+    audio_path = _voices_path(audio_filename)
+    if audio_path is None:  # profile_id is server-generated; this is belt+braces
+        raise HTTPException(status_code=400, detail="Invalid profile id")
+    # Install the recording first (previous one kept as a backup), then commit
+    # the row that references it; any failure restores the previous recording,
+    # so consent metadata and audio never disagree.
+    recorded_at = time.time()
+    staged_path = f"{audio_path}.part"
+    with _voice_file_lock:
+        with db_conn() as conn:
+            current = conn.execute(
+                "SELECT consent_audio_path FROM voice_profiles WHERE id=?", (profile_id,)
+            ).fetchone()
+        if not current:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        old = current["consent_audio_path"]
+        restore = None
+        try:
+            with open(staged_path, "wb") as f:
+                f.write(data)
+            restore, finalize = _install_staged(staged_path, audio_path)
+            with db_conn() as conn:
+                conn.execute(
+                    "UPDATE voice_profiles SET verified_own_voice=1, consent_text=?, "
+                    "consent_audio_path=?, consent_recorded_at=? WHERE id=?",
+                    (consent_text.strip(), audio_filename, recorded_at, profile_id),
+                )
+        except BaseException:
+            if restore is not None:
+                restore()
+            raise
+        finally:
+            with contextlib.suppress(OSError):
+                os.remove(staged_path)
+        finalize()
+        # A re-record may change the extension; drop the superseded file now
+        # that nothing references it.
+        if old and old != audio_filename:
+            old_path = _voices_path(old)
+            if old_path:
+                with contextlib.suppress(OSError):
+                    os.remove(old_path)
+    event_bus.emit("profiles", {"action": "consent_recorded", "id": profile_id})
+    return {
+        "id": profile_id,
+        "verified_own_voice": True,
+        "consent_recorded_at": recorded_at,
+    }
+
+
+class AttestationBody(BaseModel):
+    basis: Literal["own_voice", "speaker_permission"]
+
+
+@router.post("/profiles/{profile_id}/attestation")
+def attest_consent(profile_id: str, body: AttestationBody):
+    """Record "This is my voice" / "I have the speaker's permission" (sync consent, S2)."""
+    attested_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with db_conn() as conn:
+        updated = conn.execute(
+            "UPDATE voice_profiles SET consent_basis=?, consent_attested_at=? WHERE id=?",
+            (body.basis, attested_at, profile_id),
+        ).rowcount
+    if not updated:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    event_bus.emit("profiles", {"action": "consent_attested", "id": profile_id})
+    return {"id": profile_id, "consent_basis": body.basis, "consent_attested_at": attested_at}
+
+
+@router.delete("/profiles/{profile_id}/attestation")
+def clear_attestation(profile_id: str):
+    with db_conn() as conn:
+        updated = conn.execute(
+            "UPDATE voice_profiles SET consent_basis='', consent_attested_at=NULL WHERE id=?", (profile_id,)
+        ).rowcount
+    if not updated:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    event_bus.emit("profiles", {"action": "consent_attestation_cleared", "id": profile_id})
+    return {"id": profile_id, "consent_basis": "", "consent_attested_at": None}
+
+
+@router.delete("/profiles/{profile_id}/consent")
+def revoke_consent(profile_id: str):
+    with db_conn() as conn:
+        row = conn.execute(
+            "SELECT consent_audio_path FROM voice_profiles WHERE id=?", (profile_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        conn.execute(
+            "UPDATE voice_profiles SET verified_own_voice=0, consent_text='', "
+            "consent_audio_path='', consent_recorded_at=NULL WHERE id=?",
+            (profile_id,),
+        )
+    if row["consent_audio_path"]:
+        path = _voices_path(row["consent_audio_path"])
+        if path and os.path.exists(path):
+            os.remove(path)
+    event_bus.emit("profiles", {"action": "consent_revoked", "id": profile_id})
+    return {"id": profile_id, "verified_own_voice": False}
+
+
+@router.delete("/profiles/{profile_id}")
+def delete_profile(profile_id: str):
+    paths = []
+    with db_conn() as conn:
+        row = conn.execute("SELECT ref_audio_path, locked_audio_path, consent_audio_path FROM voice_profiles WHERE id=?", (profile_id,)).fetchone()
+        if row:
+            for col in ["ref_audio_path", "locked_audio_path", "consent_audio_path"]:
+                if row[col]:
+                    path = _voices_path(row[col])
+                    if path:
+                        paths.append(path)
+        portrait_path = _voices_path(f"{profile_id}.portrait.jpg")
+        if portrait_path and os.path.isfile(portrait_path):
+            paths.append(portrait_path)
+        # Commit the database change before removing assets: a failed write or
+        # commit must leave the rolled-back profile's files usable.
+        conn.execute(
+            "UPDATE generation_history SET profile_id=NULL WHERE profile_id=?",
+            (profile_id,),
+        )
+        conn.execute("DELETE FROM voice_profiles WHERE id=?", (profile_id,))
+    failed_assets = []
+    for path in dict.fromkeys(paths):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            continue  # already gone: nothing to clean up
+        except OSError:
+            # A cleanup failure cannot roll back the committed deletion, and
+            # must not prevent cleanup of the profile's remaining assets.
+            try:
+                failed_assets.append(os.path.relpath(
+                    resolve_within(VOICES_DIR, path), os.path.realpath(VOICES_DIR)
+                ))
+            except (UnsafePath, OSError, ValueError):
+                failed_assets.append("asset location unavailable (consult local backend log)")
+            logger.warning("Deleted profile asset cleanup failed: %s", scrub_text(path))
+    event_bus.emit("profiles", {"action": "deleted", "id": profile_id})
+    if failed_assets:
+        raise HTTPException(status_code=500, detail=(
+            "The profile record was deleted, but asset cleanup is incomplete for: "
+            + ", ".join(failed_assets)
+            + ". Paths are relative to the voices folder; remove the files manually. "
+            "Consult the local backend log if an asset location is unavailable."
+        ))
+    return {"deleted": profile_id}

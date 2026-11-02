@@ -1,0 +1,34 @@
+import { expect, it, vi } from 'vitest';
+const mock = vi.hoisted(() => ({ json: vi.fn() }));
+vi.mock('./client', () => ({ apiJson: mock.json }));
+vi.mock('@/lib/i18n-text', () => ({ tr: (key: string) => key }));
+import { convertSpeech } from './convert';
+import { acquireSynthesis } from '@/lib/synthesis-lock';
+it('shares synthesis admission, sends multipart contract and releases on failure', async () => {
+  const file = new File(['audio'], 'source.wav');
+  const signal = new AbortController().signal;
+  const release = acquireSynthesis()!;
+  await expect(convertSpeech(file, 'a', false, signal)).rejects.toThrow('generation_in_progress');
+  expect(mock.json).not.toHaveBeenCalled();
+  release();
+  mock.json.mockRejectedValue(new Error('fixture failure'));
+  await expect(convertSpeech(file, 'a', false, signal)).rejects.toThrow('fixture failure');
+  const [path, init] = mock.json.mock.calls[0];
+  expect(path).toBe('/convert');
+  expect(init.body.get('audio').name).toBe('source.wav');
+  expect(init.body.get('profile_id')).toBe('a');
+  expect(init.body.get('match_duration')).toBe('0');
+  const freed = acquireSynthesis();
+  expect(freed).not.toBeNull();
+  freed?.();
+});
+it('sends keep_delivery only when Keep my delivery is on', async () => {
+  const file = new File(['audio'], 'source.wav');
+  const signal = new AbortController().signal;
+  mock.json.mockReset();
+  mock.json.mockResolvedValue({ id: 'x', audio_url: '/audio/x.wav', text: '' });
+  await convertSpeech(file, 'a', true, signal);
+  await convertSpeech(file, 'a', true, signal, 'Auto', true);
+  expect(mock.json.mock.calls[0][1].body.has('keep_delivery')).toBe(false);
+  expect(mock.json.mock.calls[1][1].body.get('keep_delivery')).toBe('1');
+});

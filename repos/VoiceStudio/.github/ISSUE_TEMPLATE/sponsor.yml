@@ -1,0 +1,81 @@
+name: 🤝 Sponsorship inquiry
+description: Ask for sponsor recognition after you pay. Not for bugs or feature requests.
+title: "Sponsorship inquiry: "
+labels: ["sponsor"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for considering sponsoring **VoiceStudio** 💛
+
+        VoiceStudio is free, local-first, and AGPL-3.0 — sponsorship keeps development going.
+        See **[SPONSORS.md](https://github.com/debpalash/VoiceStudio/blob/main/SPONSORS.md)** for tiers, placements, and logo guidelines.
+        Prefer to just donate? [GitHub Sponsors](https://github.com/sponsors/debpalash) (monthly or one-time), [Ko-fi](https://ko-fi.com/debpalash) (recurring), or [PayPal](https://paypal.me/palashCoder) (one-time) — you don't need this form for that.
+
+        **This issue is public.** Only enter what you want shown. Send receipts and private details to partner@voicestudio.sh. Recognition starts after payment is verified.
+  - type: input
+    id: name
+    attributes:
+      label: Name or organization
+      description: How you'd like to be credited (person or company).
+    validations:
+      required: true
+  - type: input
+    id: website
+    attributes:
+      label: Website / link
+      description: The URL your name or logo should link to (homepage, product page, profile…).
+      placeholder: https://example.com
+  - type: input
+    id: logo
+    attributes:
+      label: Logo URL (optional)
+      description: Link to your logo (SVG preferred, else 2× PNG, transparent background). You can also attach it in the description below.
+      placeholder: https://example.com/logo.svg
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Tier you're interested in
+      description: See SPONSORS.md for what each tier includes. Not sure? Pick "Not sure yet".
+      options:
+        - Supporter ($5+)
+        - Community Sponsor ($25)
+        - Development Sponsor ($100)
+        - Company Sponsor ($500)
+        - Strategic Sponsor ($1,000)
+        - Not sure yet — let's talk
+        - Custom / annual arrangement
+    validations:
+      required: true
+  - type: dropdown
+    id: method
+    attributes:
+      label: How you pay or plan to pay
+      options:
+        - GitHub Sponsors (monthly)
+        - GitHub Sponsors (one-time)
+        - Ko-fi (recurring)
+        - Ko-fi (one-time)
+        - PayPal (one-time)
+        - Not sure yet — let's discuss
+    validations:
+      required: true
+  - type: input
+    id: contact
+    attributes:
+      label: Public contact (optional)
+      description: GitHub notifies you on this issue. Don't enter a private email here; use partner@voicestudio.sh for that.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
+      description: Questions, constraints, timeline, or context. Attach your logo here if you didn't link it above.
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: I understand sponsorship is a thank-you, not a paywall — VoiceStudio stays fully free and AGPL-3.0, and sponsors don't get gated features.
+          required: true
+        - label: If I provide a logo, I have the right to use it and grant VoiceStudio permission to display it in the README, the app, and the project website.
+          required: false

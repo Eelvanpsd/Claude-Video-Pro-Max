@@ -15,3 +15,6 @@ Each folder in `repos/` is a full copy of the upstream repo at the commit that w
 | `openverse` | https://github.com/WordPress/openverse.git | `0af981afc20118c87343a59389da10827788dd57` |
 | `earshot` | https://github.com/Leonxlnx/earshot.git | `591fa3e028032e6dce56620a20e932e35667e8d8` |
 | `real-sfx` | https://github.com/Clipwing/skills.git (folder `skills/real-sfx` only) | `edbefcbc3474869e6cc1e8a7ca583b0efd0dab7e` |
+| `VoiceStudio` | https://github.com/debpalash/VoiceStudio.git | `1a29929cb87f8ff1470271e6498f0694d395f54d` |
+
+Notes: `VoiceStudio` excludes its 6 demo `.mp4` files (this repo ignores `*.mp4`) and the uninitialised `omnivoice-gallery` submodule.

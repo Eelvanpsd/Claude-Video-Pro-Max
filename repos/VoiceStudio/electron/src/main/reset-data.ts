@@ -1,0 +1,346 @@
+import { lstat, readdir, realpath, rm } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
+
+export const FRONTEND_RESET_SCOPES = ['ui_prefs', 'history'] as const;
+export const DISK_RESET_SCOPES = [
+  'settings',
+  'content',
+  'engines',
+  'tools',
+  'models',
+  'caches',
+  'logs',
+] as const;
+export type DiskResetScope = (typeof DISK_RESET_SCOPES)[number];
+
+export interface ResetRoots {
+  data: string;
+  models: string;
+  logs: string | null;
+  temp: string;
+}
+
+export interface ResetScope {
+  key: string;
+  paths: string[];
+  size_bytes: number;
+  exists: boolean;
+  shared: boolean;
+  needs_restart: boolean;
+}
+
+export interface ResetReport {
+  removed: string[];
+  failed: string[];
+  refused: string[];
+  freed_bytes: number;
+  restarted: boolean;
+}
+
+async function stat(path: string) {
+  try {
+    return await lstat(path);
+  } catch {
+    return null;
+  }
+}
+
+export async function directorySize(path: string): Promise<number> {
+  let physical: string;
+  try {
+    physical = await realpath(path);
+  } catch {
+    return 0;
+  }
+  return directorySizePhysical(physical);
+}
+
+async function directorySizePhysical(path: string): Promise<number> {
+  const info = await stat(path);
+  if (!info || info.isSymbolicLink()) return 0;
+  if (info.isFile()) return info.size;
+  if (!info.isDirectory()) return 0;
+  let children;
+  try {
+    children = await readdir(path, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  const sizes = await Promise.all(
+    children.map((entry) =>
+      entry.isSymbolicLink() ? 0 : directorySizePhysical(join(path, entry.name)),
+    ),
+  );
+  return sizes.reduce((sum, size) => sum + size, 0);
+}
+
+async function prefixedChildren(path: string, prefix: string): Promise<string[]> {
+  try {
+    return (await readdir(path, { withFileTypes: true }))
+      .filter((entry) => entry.name.startsWith(prefix))
+      .map((entry) => join(path, entry.name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+function components(path: string): string[] {
+  const root = parse(path).root;
+  return path
+    .slice(root.length)
+    .split(/[\\/]+/)
+    .filter(Boolean);
+}
+
+export function normalized(path: string): string {
+  const value = resolve(path);
+  return process.platform === 'win32' ? value.toLocaleLowerCase('en-US') : value;
+}
+
+export function within(path: string, root: string): boolean {
+  const rel = relative(normalized(root), normalized(path));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+async function hasAppSignature(path: string, allowModelCache = false): Promise<boolean> {
+  for (const marker of ['omnivoice.db', 'prefs.json', 'voices', 'outputs', 'engines']) {
+    if (await stat(join(path, marker))) return true;
+  }
+  if (!allowModelCache) return false;
+  const hub = await stat(join(path, 'hub'));
+  if (hub?.isDirectory()) return true;
+  try {
+    return (await readdir(path)).some((name) => name.startsWith('models--'));
+  } catch {
+    return false;
+  }
+}
+
+async function canonical(path: string): Promise<string | null> {
+  try {
+    return await realpath(path);
+  } catch {
+    return null;
+  }
+}
+
+const APP_NAMES = new Set([
+  'omnivoice',
+  '.omnivoice',
+  'voicestudio',
+  'com.debpalash.omnivoice-studio',
+]);
+const MANAGED_CHILDREN = new Set([
+  'data',
+  'logs',
+  'runtime',
+  'shell',
+  'project',
+  '.uv-cache',
+  '.python',
+  '.tmp',
+  'tmp',
+]);
+
+// Folders the OS (or the installer) keeps per-app directories in. A bare app-named
+// directory anywhere else, such as ~/Documents/VoiceStudio, is the user's own unless it
+// carries the app's signature.
+const APP_PARENTS = new Set([
+  'application support',
+  'caches',
+  'logs',
+  'roaming',
+  'local',
+  'programs',
+  '.config',
+  '.cache',
+  'share',
+  'state',
+]);
+
+function appParent(appDir: string, home: string | null): boolean {
+  const parent = dirname(appDir);
+  if (home && normalized(parent) === normalized(home)) return true;
+  const parts = components(parent).map((part) => part.toLocaleLowerCase('en-US'));
+  const name = parts.at(-1);
+  if (!name || !APP_PARENTS.has(name)) return false;
+  // `share` and `state` only count as ~/.local/share and ~/.local/state.
+  return (name !== 'share' && name !== 'state') || parts.at(-2) === '.local';
+}
+
+function exactManagedLayout(path: string, home: string | null): boolean {
+  const parts = components(path).map((part) => part.toLocaleLowerCase('en-US'));
+  const leaf = parts.at(-1);
+  const parent = parts.at(-2);
+  if (!leaf) return false;
+  if (APP_NAMES.has(leaf)) return appParent(path, home);
+  // A known runtime child is specific enough on its own: setup can place the whole
+  // app folder on any drive (#2971).
+  if (parent && APP_NAMES.has(parent) && MANAGED_CHILDREN.has(leaf)) return true;
+  return (
+    parts.length >= 3 &&
+    parts.at(-3) !== undefined &&
+    APP_NAMES.has(parts.at(-3)!) &&
+    parts.at(-2) === 'runtime' &&
+    MANAGED_CHILDREN.has(leaf)
+  );
+}
+
+function exactModelLayout(path: string): boolean {
+  const parts = components(path).map((part) => part.toLocaleLowerCase('en-US'));
+  return (
+    (parts.at(-1) === 'huggingface' && parts.at(-2) === '.cache') ||
+    (parts.at(-1) === 'hub' && parts.at(-2) === 'huggingface')
+  );
+}
+
+export async function isValidVoiceStudioRoot(
+  path: string,
+  home: string | null = homedir(),
+  allowModelCache = false,
+): Promise<boolean> {
+  if (!isAbsolute(path)) return false;
+  const physical = await canonical(path);
+  if (!physical || dirname(physical) === physical || components(physical).length < 2) return false;
+  const physicalHome = await canonical(home ?? homedir());
+  if (physicalHome && normalized(physical) === normalized(physicalHome)) return false;
+  return (
+    exactManagedLayout(physical, physicalHome) ||
+    (allowModelCache && exactModelLayout(physical)) ||
+    hasAppSignature(physical, allowModelCache)
+  );
+}
+
+export async function modelsAreShared(models: string, data: string): Promise<boolean> {
+  const [physicalModels, physicalData] = await Promise.all([canonical(models), canonical(data)]);
+  if (!physicalModels || !physicalData) return true;
+  if (!(await isValidVoiceStudioRoot(physicalData))) return true;
+  return !within(physicalModels, physicalData);
+}
+
+async function scopeTargets(key: DiskResetScope, roots: ResetRoots): Promise<string[]> {
+  switch (key) {
+    case 'settings':
+      return [join(roots.data, 'prefs.json')];
+    case 'content':
+      return [
+        join(roots.data, 'voices'),
+        join(roots.data, 'outputs'),
+        join(roots.data, 'dub_jobs'),
+        join(roots.data, 'batch'),
+        join(roots.data, 'preview'),
+        ...(await prefixedChildren(roots.data, 'omnivoice.db')),
+      ];
+    case 'engines':
+      return [join(roots.data, 'engines')];
+    case 'tools':
+      return [join(roots.data, 'media_tools')];
+    case 'models':
+      return [roots.models];
+    case 'caches':
+      return [
+        join(roots.data, 'gallery_cache'),
+        join(roots.data, 'gallery_sources.json'),
+        ...(await prefixedChildren(roots.temp, 'omnivoice')),
+      ];
+    case 'logs':
+      return [
+        join(roots.data, 'crash_log.txt'),
+        join(roots.data, 'error_journal.jsonl'),
+        ...(await prefixedChildren(roots.data, 'omnivoice.log')),
+        ...(roots.logs ? [roots.logs] : []),
+      ];
+  }
+}
+
+async function authorizedTarget(
+  key: DiskResetScope,
+  path: string,
+  roots: ResetRoots,
+  home: string | null,
+): Promise<string | null> {
+  const physicalTarget = await canonical(path);
+  if (!physicalTarget) return null;
+  if (
+    key === 'caches' &&
+    normalized(dirname(physicalTarget)) === normalized((await canonical(roots.temp)) ?? '') &&
+    basename(path).toLocaleLowerCase('en-US').startsWith('omnivoice')
+  ) {
+    return physicalTarget;
+  }
+  const root =
+    key === 'models'
+      ? roots.models
+      : key === 'logs' && roots.logs && within(physicalTarget, (await canonical(roots.logs)) ?? '')
+        ? roots.logs
+        : roots.data;
+  const physicalRoot = await canonical(root);
+  const allowed = Boolean(
+    physicalRoot &&
+    within(physicalTarget, physicalRoot) &&
+    (await isValidVoiceStudioRoot(physicalRoot, home, key === 'models')),
+  );
+  return allowed ? physicalTarget : null;
+}
+
+export async function scanResetScopes(roots: ResetRoots): Promise<ResetScope[]> {
+  const scopes: ResetScope[] = FRONTEND_RESET_SCOPES.map((key) => ({
+    key,
+    paths: [],
+    size_bytes: 0,
+    exists: true,
+    shared: false,
+    needs_restart: false,
+  }));
+  for (const key of DISK_RESET_SCOPES) {
+    const targets = await scopeTargets(key, roots);
+    const present: string[] = [];
+    for (const target of targets) if (await stat(target)) present.push(target);
+    const sizes = await Promise.all(present.map(directorySize));
+    scopes.push({
+      key,
+      paths: present,
+      size_bytes: sizes.reduce((sum, size) => sum + size, 0),
+      exists: present.length > 0,
+      shared: key === 'models' && (await modelsAreShared(roots.models, roots.data)),
+      needs_restart: true,
+    });
+  }
+  return scopes;
+}
+
+export async function purgeResetScopes(
+  roots: ResetRoots,
+  requested: string[],
+  home: string | null,
+): Promise<ResetReport> {
+  const report: ResetReport = {
+    removed: [],
+    failed: [],
+    refused: [],
+    freed_bytes: 0,
+    restarted: false,
+  };
+  const wanted = DISK_RESET_SCOPES.filter((key) => requested.includes(key));
+  for (const key of wanted) {
+    for (const target of await scopeTargets(key, roots)) {
+      if (!(await stat(target))) continue;
+      const physicalTarget = await authorizedTarget(key, target, roots, home);
+      if (!physicalTarget) {
+        report.refused.push(target);
+        continue;
+      }
+      const size = await directorySize(target);
+      try {
+        await rm(physicalTarget, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+        report.removed.push(physicalTarget);
+        report.freed_bytes += size;
+      } catch {
+        report.failed.push(target);
+      }
+    }
+  }
+  return report;
+}

@@ -30,3 +30,7 @@ Status: ✅ shipped in [`kit/`](../kit) · 🔜 next · 💡 later.
 | 23 | Sound sheet PNG beside the contact sheet in post-render QA | Agent can "see" the mix | S | earshot `sheet` | 💡 |
 | 24 | Own reference profile from `docs/reference/` videos → `earshot critique` against it | Genre-correct audio scorecard | M | earshot `profile` | 💡 |
 | 25 | Blind A/B listen page for mix-level decisions | Real ears, one tap | S | real-sfx `listen_page.py` | 💡 |
+| 26 | **Room-tone pause fill** — sentence gaps get the take's own noise floor (40 ms fades), not digital silence | Seamless pauses under a faint bed | S | VoiceStudio `audio_dsp.py` | 🔜 |
+| 27 | Narration signal check: long silence, volume jumps, clipping, empty/NaN samples, with timestamps | Catches broken TTS takes before render | S | VoiceStudio `audio_quality.py` | 💡 |
+| 28 | WhisperX forced alignment (±10–30 ms) as a second pass when caption words drift | Tighter word-synced captions | M | VoiceStudio `whisperx` engine | 💡 |
+| 29 | Pronunciation lexicon for historical names before TTS | Fewer mispronounced names | S | VoiceStudio `pronunciation.py` | 💡 |

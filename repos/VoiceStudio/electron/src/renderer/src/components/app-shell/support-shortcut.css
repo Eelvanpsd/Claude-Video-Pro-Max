@@ -1,0 +1,64 @@
+/* Title bar shortcuts (Get Pro, GitHub Star): quiet ghost controls that share
+   the search button's height and hover, so the work area keeps the attention. */
+.support-shortcut,
+.github-star-shortcut {
+  height: 1.75rem;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--toolbar-control-foreground, var(--muted-foreground));
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+.support-shortcut:hover,
+.support-shortcut:focus-visible,
+.github-star-shortcut:hover,
+.github-star-shortcut:focus-visible {
+  color: var(--foreground);
+  background: var(--toolbar-control-hover, var(--accent));
+}
+.support-shortcut svg {
+  color: var(--primary);
+}
+.github-star-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 8px;
+}
+.github-star-label svg {
+  color: var(--warning);
+  transition:
+    fill 150ms ease,
+    transform 260ms ease;
+}
+.github-star-shortcut:hover .github-star-label svg,
+.github-star-shortcut:focus-visible .github-star-label svg {
+  fill: var(--warning);
+  transform: rotate(72deg);
+}
+.github-star-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px 0 4px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.github-star-shortcut:hover .github-star-count,
+.github-star-shortcut:focus-visible .github-star-count {
+  color: var(--foreground);
+}
+@media (prefers-reduced-motion: reduce) {
+  .support-shortcut,
+  .github-star-shortcut,
+  .github-star-label svg {
+    transition: none;
+  }
+  .github-star-shortcut:hover .github-star-label svg,
+  .github-star-shortcut:focus-visible .github-star-label svg {
+    transform: none;
+  }
+}

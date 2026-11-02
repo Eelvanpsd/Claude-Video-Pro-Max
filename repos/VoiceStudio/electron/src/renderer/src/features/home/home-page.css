@@ -1,0 +1,638 @@
+.home-content {
+  padding: 30px 24px 40px;
+}
+
+.home-heading {
+  padding: 8px 0 24px;
+  margin-bottom: 8px;
+}
+
+.home-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+
+.home-heading-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  flex: 1 1 280px;
+}
+
+.home-contributors {
+  --contributor-size: 32px;
+  --maintainer-size: 52px;
+  direction: ltr;
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  /* Wide enough for two short rows, so the avatars sit beside the title and
+     subtitle instead of stacking into a column taller than them. */
+  max-width: calc(var(--contributor-size) * 8 + 16px);
+  margin-inline-start: auto;
+  padding: 4px;
+}
+
+.home-contributors ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.home-contributors-core {
+  gap: 8px;
+}
+
+.home-contributors-rest {
+  gap: 2px;
+}
+
+.home-contributors li {
+  position: relative;
+}
+
+.home-contributors li:has(.home-contributor:is(:hover, :focus-visible, [data-popup-open])) {
+  z-index: 1;
+}
+
+.home-contributor {
+  display: block;
+  border-radius: 50%;
+  outline-offset: 2px;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.home-contributor-avatar {
+  position: relative;
+  display: block;
+  width: var(--contributor-size);
+  height: var(--contributor-size);
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--card);
+}
+
+.home-contributors-core .home-contributor-avatar {
+  width: var(--maintainer-size);
+  height: var(--maintainer-size);
+  padding: 3px;
+}
+
+/* Core maintainers share a small badge in the app’s accent color. */
+.home-core-maintainer {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--background);
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.home-core-maintainer svg {
+  width: 8px;
+  height: 8px;
+  fill: currentColor;
+}
+
+.home-contributor-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--muted-foreground);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.home-contributor-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+.home-contributor:is(:hover, :focus-visible, [data-popup-open]) {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 8px rgb(0 0 0 / 15%);
+}
+
+.home-contributor:focus-visible {
+  outline: 2px solid var(--ring);
+}
+
+.home-contributor-popup {
+  position: relative;
+  width: 264px;
+  padding: 0 0 6px;
+  overflow: hidden;
+}
+
+/* Edge glow: a hairline rim lit from the top-left plus a faint halo, both from the theme's primary colour. */
+.home-contributor-popup {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 12%, transparent),
+    0 18px 48px -18px color-mix(in oklab, var(--primary) 45%, transparent),
+    0 10px 30px -12px rgb(0 0 0 / 35%);
+}
+
+.home-contributor-popup::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    145deg,
+    color-mix(in oklab, var(--primary) 60%, transparent),
+    transparent 38%,
+    transparent 70%,
+    color-mix(in oklab, var(--primary) 22%, transparent)
+  );
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Soft wash of the theme's primary colour behind the portrait. */
+.home-contributor-banner {
+  height: 44px;
+  background:
+    radial-gradient(
+      120% 140% at 0% 0%,
+      color-mix(in oklab, var(--primary) 34%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      90% 120% at 100% 0%,
+      color-mix(in oklab, var(--primary) 16%, transparent),
+      transparent 70%
+    );
+}
+
+.home-contributor-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: -22px;
+  padding: 0 14px 12px;
+}
+
+/* The name block starts below the banner so it centres on the portrait. */
+.home-contributor-identity > div {
+  padding-top: 22px;
+}
+
+.home-contributor-identity img {
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3px var(--popover),
+    0 4px 14px rgb(0 0 0 / 18%);
+}
+
+.home-contributor-identity strong {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-contributor-identity small {
+  font-size: 11.5px;
+}
+
+.home-contributor-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  color: var(--primary);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.home-contributor-role svg {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+}
+
+.home-contributor-links {
+  display: grid;
+  gap: 2px;
+  padding: 6px 6px 0;
+  border-top: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+}
+
+.home-contributor-popup a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  transition: background-color 150ms ease;
+}
+
+.home-contributor-popup a:is(:hover, :focus-visible) {
+  background: var(--accent);
+}
+
+.home-contributor-popup a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.home-contributor-link-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--muted) 70%, transparent);
+  color: var(--muted-foreground);
+  transition: color 150ms ease;
+}
+
+.home-contributor-link-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.home-contributor-popup a:is(:hover, :focus-visible) .home-contributor-link-icon {
+  color: var(--foreground);
+}
+
+/* Quiet until the row is pointed at, then the theme's primary colour. */
+.home-contributor-follow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.home-contributor-popup a:is(:hover, :focus-visible) .home-contributor-follow {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.home-contributor-popup a[data-kind='website'] .home-contributor-follow,
+.home-contributor-popup a[data-kind='website']:is(:hover, :focus-visible) .home-contributor-follow {
+  padding: 0 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.home-contributor-popup small {
+  display: block;
+  color: var(--muted-foreground);
+}
+
+/* Label and handle sit as one tight block, centred on the icon tile. */
+.home-contributor-popup a > span:not(.home-contributor-link-icon, .home-contributor-follow) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.25;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-contributor {
+    transition: none;
+  }
+  .home-contributor:is(:hover, :focus-visible, [data-popup-open]) {
+    transform: none;
+  }
+}
+
+.home-destinations--primary {
+  margin-bottom: 18px;
+}
+
+.home-destination {
+  --home-accent: #79b9ee;
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, var(--foreground) 6%);
+  border-radius: 17px;
+  background: var(--card);
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.home-destination[data-destination='/design'] {
+  --home-accent: #b8a1ee;
+}
+.home-destination[data-destination='/dub'] {
+  --home-accent: #72cebd;
+}
+
+.home-destination--primary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 176px;
+  padding: 20px;
+  background:
+    radial-gradient(
+      ellipse at 100% 0%,
+      color-mix(in srgb, var(--home-accent) 9%, transparent),
+      transparent 75%
+    ),
+    var(--card);
+  border-color: color-mix(in srgb, var(--home-accent) 22%, var(--border));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+
+.home-card-art {
+  position: absolute;
+  z-index: -1;
+  top: 12px;
+  right: 12px;
+  width: 46%;
+  height: 70px;
+  stroke: var(--home-accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.26;
+}
+
+.home-destination-icon {
+  flex-shrink: 0;
+}
+
+.home-feature-svg {
+  width: 25px;
+  height: 25px;
+  overflow: visible;
+}
+
+.home-feature-svg :is(g, path, rect, circle) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Finite, interaction-only motion. No idle animation or promoted layers. */
+@media (prefers-reduced-motion: no-preference) {
+  .home-destination:is(:hover, :focus-visible) .home-feature-svg [class^='home-svg-'] {
+    animation-duration: 1.6s;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: 2;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-wave {
+    animation-name: home-wave;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-tilt {
+    animation-name: home-tilt;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-spark {
+    animation-name: home-spark;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-exchange {
+    animation-name: home-exchange;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-sequence {
+    animation-name: home-sequence;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-page {
+    animation-name: home-page;
+    transform-origin: left center;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-fan {
+    animation-name: home-fan;
+    transform-origin: bottom center;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-adjust {
+    animation-name: home-adjust;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-delay {
+    animation-delay: 0.15s;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-delay-long {
+    animation-delay: 0.3s;
+  }
+  .home-destination:is(:hover, :focus-visible) .home-svg-reverse {
+    animation-direction: reverse;
+  }
+}
+
+@keyframes home-wave {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  35% {
+    transform: scaleY(0.45);
+  }
+  65% {
+    transform: scaleY(0.85);
+  }
+}
+@keyframes home-tilt {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  45% {
+    transform: rotate(-9deg);
+  }
+}
+@keyframes home-spark {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  45% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+@keyframes home-exchange {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+}
+@keyframes home-sequence {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  35% {
+    opacity: 0.25;
+  }
+  65% {
+    opacity: 1;
+  }
+}
+@keyframes home-page {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleX(0.3);
+    opacity: 0.4;
+  }
+}
+@keyframes home-fan {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(-8deg);
+  }
+}
+@keyframes home-adjust {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+.home-destination-copy {
+  min-width: 0;
+}
+
+.home-destination--primary .home-destination-copy {
+  margin-top: 22px;
+  padding-right: 20px;
+}
+
+.home-destination-copy h3 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: -0.015em;
+}
+
+.home-destination--primary h3 {
+  font-size: 16px;
+}
+
+.home-destination-copy p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--foreground) 72%, var(--background));
+}
+
+.home-destination-arrow {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  opacity: 0.65;
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+.home-destination--primary .home-destination-arrow {
+  position: absolute;
+  bottom: 23px;
+  right: 20px;
+}
+
+.home-destination--secondary {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px 15px;
+  background: color-mix(in srgb, var(--card) 70%, var(--background));
+}
+
+.home-destination--secondary .home-destination-copy {
+  flex: 1;
+}
+
+.home-destination:hover,
+.home-destination:focus-visible {
+  border-color: color-mix(in srgb, var(--home-accent) 50%, var(--border));
+  box-shadow:
+    0 5px 18px rgb(0 0 0 / 7%),
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.home-destination:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.home-destination:hover .home-destination-arrow,
+.home-destination:focus-visible .home-destination-arrow {
+  transform: translateX(2px);
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .home-content {
+    padding: 20px 16px 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-destination,
+  .home-destination-arrow {
+    transition: none;
+  }
+  .home-destination:hover .home-destination-arrow {
+    transform: none;
+  }
+}

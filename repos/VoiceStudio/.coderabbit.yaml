@@ -1,0 +1,217 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/guides/configure-coderabbit
+# The CodeRabbit GitHub App is already installed on this repo and reviews every
+# PR on creation. This file only tunes that behavior; it is not required for the
+# bot to run.
+#
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+# The review voice: a panel of senior domain experts, not a linter.
+# Brevity is a hard requirement (owner directive 2026-07-20): comment ONLY
+# when a finding would change what gets merged.
+tone_instructions: >-
+  Comment only on findings that change what gets merged: a bug, a violated house rule, a real risk. Max three sentences each: failure mode, line, fix. No praise, no diff restating, no style nits, no emojis.
+
+reviews:
+  # "chill" keeps the bot from blocking merges — it comments, it does not gate.
+  # Hard gating lives in CI (security.yml) and the constitution's human bar.
+  profile: chill
+  request_changes_workflow: false
+  # Keep the walkthrough minimal: a short summary, no diagrams, no per-push
+  # status chatter, collapsed by default (owner: no fluff on PRs).
+  high_level_summary: true
+  high_level_summary_instructions: >-
+    Three sentences maximum: what changed, why, and any risk worth a human
+    look. No diagrams, no sketches, no file-by-file narration.
+  sequence_diagrams: false
+  collapse_walkthrough: true
+  review_status: false
+  poem: false
+
+  auto_review:
+    enabled: true
+    # Match the constitution: drafts are work-in-progress, don't burn review
+    # cycles on them. PRs flip to ready → CodeRabbit reviews.
+    drafts: false
+    base_branches:
+      - main
+
+  # Skip generated / vendored / binary paths so the review stays high-signal.
+  path_filters:
+    - "!**/*.lock"
+    - "!**/bun.lock"
+    - "!**/uv.lock"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/*.min.js"
+    - "!**/*.svg"
+    - "!**/*.png"
+    - "!**/*.wav"
+    - "!**/*.onnx"
+    - "!tests/fixtures/**"
+
+  # One expert lens per subsystem — encode what a passionate senior in each
+  # domain would actually check, beyond what linters and CI already gate.
+  path_instructions:
+    - path: "**/*.{py,rs,js,jsx,ts,tsx}"
+      instructions: >-
+        VoiceStudio is local-first: no required cloud calls, accounts or API
+        keys. Flag any new outbound network call that is not on the sanctioned
+        list in CLAUDE.md (Local-first guarantee) and .github/CONTRIBUTING.md
+        (Quality gates); analytics stays behind the first-run consent prompt.
+        Flag any code that persists or logs values matching
+        *TOKEN*/*KEY*/*SECRET* or absolute user home paths (/Users/<name>/,
+        C:\\Users\\<name>\\).
+    - path: "backend/services/**/*.py"
+      instructions: >-
+        Review as an ML-inference/audio engineer. Check: thread-safety of model
+        and cache state across the GPU worker pool; device/dtype assumptions
+        that break on one of CUDA/MPS/ROCm/CPU; VRAM lifecycle (load/unload,
+        leaks on the error path); sample-rate, channel-count and tensor-shape
+        assumptions at engine boundaries; blocking calls inside async paths;
+        model download/cache behavior when offline. Engine code must stay
+        backward-compatible with already-installed on-disk model state.
+    - path: "backend/**/*.py"
+      instructions: >-
+        Default features must behave identically on macOS, Windows and Linux.
+        Platform-specific implementation is allowed, but a divergent user-visible
+        default is a P0 bug — flag it and suggest an opt-in (Settings/env/flag).
+        Any DB schema change must go through an alembic migration with an upgrade
+        path; flag direct schema edits. The backend serves loopback HTTP: treat
+        every query/path/form param as hostile (path traversal, log injection,
+        CSRF from a browser tab), and never route user-chosen filesystem
+        destinations through HTTP — that authorization belongs in Electron main.
+    - path: "electron/src/{shared,renderer}/**/*.{js,jsx,ts,tsx}"
+      instructions: >-
+        Review as a product-minded senior frontend engineer. Check: stale state
+        and races (async results landing after unmount or after newer requests);
+        every user-visible failure has an actionable, non-technical error
+        message; loading/disabled states during long operations. Every new
+        user-facing string must be an i18n t('...') key present in ALL 21
+        locale files of the catalog the code imports from —
+        electron/src/shared/i18n/locales/*.json (tests/test_locale_parity.py)
+        or electron/src/renderer/src/i18n/locales/*.json (electron
+        locale:check) — flag hardcoded UI strings and keys missing from any
+        locale.
+    - path: "electron/**/*.{ts,tsx}"
+      instructions: >-
+        Electron is the only maintained desktop; Tauri is sunset and archived.
+        Review main/preload IPC authorization, sender validation, narrow bridges,
+        native file dialogs, runtime supervision and renderer lifecycle. Never
+        require a Tauri UI backport. User-facing strings belong in all 21 files
+        of the matching locale catalog. Validate user-visible behavior on macOS, Windows and Linux.
+    - path: "native/**/*.rs"
+      instructions: >-
+        Review the Electron native helper (native/desktop-bridge) for input
+        validation, process and filesystem scope, thread affinity and
+        cross-platform behavior. Never require work on the removed Tauri shell.
+    - path: "tests/**/*.py"
+      instructions: >-
+        Review as a test-infrastructure engineer. Check: the test would fail
+        before the fix and pass after (no tautologies); no sleeps as
+        synchronization; no module-level imports of app modules that go stale
+        under sys.modules pollution (resolve at run time); TestClient instances
+        are function-scoped and not lifespan-bound unless the test needs it;
+        new functional CJK is allowlisted in tests/test_no_hardcoded_cjk.py with
+        a justification.
+    - path: ".github/workflows/**"
+      instructions: >-
+        Every remote action must be pinned to a full 40-character commit SHA
+        with a trailing "# vX.Y.Z" comment (tests/test_actions_pinned.py).
+        Flag any workflow that grants write permissions it does not need.
+    - path: "CHANGELOG.md"
+      instructions: >-
+        Hard rule (owner-restyled 2026-07-17): the Unreleased section is a
+        short **Highlights** bullet list followed by ### Changed/Added/Docs/
+        Fixed sections whose entries are each a SINGLE one-liner ending with
+        the (#NNN) ref and, for community contributions, a "— thanks @user!"
+        credit. Flag multi-line or bold-lead paragraph entries, missing refs,
+        and missing credits.
+    - path: "**/package.json"
+      instructions: >-
+        This is a bun workspace monorepo: any dependency change in a workspace
+        package.json requires regenerating the repo-root bun.lock in the same
+        PR — deploy/Dockerfile runs `bun install --frozen-lockfile`, so
+        CI-green does not imply Docker-green. Flag package.json dependency
+        changes without a matching root bun.lock diff. The root package.json
+        is the single source of truth for the app version — flag any version
+        change not mirrored in pyproject.toml and backend/core/version.py
+        (_FALLBACK_VERSION) in lockstep (tests/test_app_version.py), and any
+        version bump the owner did not request.
+
+  # Non-gating pre-merge audits of the project's hard rules (warning mode —
+  # the human owner is the gate, these make the checklist visible per-PR).
+  pre_merge_checks:
+    title:
+      mode: warning
+      requirements: >-
+        Conventional-commit style with scope, e.g. "fix(dub): …", and the issue
+        reference in title or body. Never propose a version bump.
+    issue_assessment:
+      mode: warning
+    custom_checks:
+      - name: "Cross-platform default parity"
+        mode: warning
+        instructions: >-
+          If the PR changes any default-mode (out-of-the-box) behavior, verify
+          it behaves identically on macOS, Windows and Linux, or is moved behind
+          an explicit opt-in (Settings toggle, env var, or CLI flag). A
+          platform-divergent default is a P0 per CLAUDE.md — fail this check
+          and say which platform diverges.
+      - name: "i18n completeness (21 locales)"
+        mode: warning
+        instructions: >-
+          For every new or changed t('...') key in Electron UI code, verify the
+          key exists in all 21 files of the catalog it uses:
+          electron/src/shared/i18n/locales/ or
+          electron/src/renderer/src/i18n/locales/. List any locale files
+          missing the key. Also flag hardcoded user-facing strings
+          that bypass i18n entirely.
+      - name: "Local-first guarantee"
+        mode: warning
+        instructions: >-
+          Verify the PR adds no required cloud calls, accounts or API keys,
+          and no outbound call outside the sanctioned list in CLAUDE.md
+          (Local-first guarantee) and .github/CONTRIBUTING.md (Quality gates).
+          Product analytics must stay behind the first-run consent prompt. The
+          app must remain fully functional offline with every prompt
+          declined.
+      - name: "Backward compatibility"
+        mode: warning
+        instructions: >-
+          Verify existing omnivoice_data/ (voices, projects, settings) and
+          already-installed engine model state keep working without manual
+          migration. Any DB schema change must ship an alembic migration with
+          an upgrade path. Flag anything that would force users to reinstall an
+          engine or re-download model weights.
+
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+
+# Feed the bot the project constitution and docs, and let it accumulate
+# learnings from review conversations ("@coderabbitai always/never …").
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CLAUDE.md"
+      - "docs/**/*.md"
+  learnings:
+    scope: auto
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto
+
+chat:
+  auto_reply: true

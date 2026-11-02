@@ -1,0 +1,218 @@
+# VoiceStudio
+
+**The open-source ElevenLabs alternative.** Real-time dictation, zero-shot voice
+cloning, and cinematic video dubbing — fully local, with no cloud API keys or accounts.
+**646 languages.**
+
+[![Docker Pulls](https://img.shields.io/docker/pulls/palashdeb/omnivoice-studio?logo=docker&color=2496ED)](https://hub.docker.com/r/palashdeb/omnivoice-studio)
+[![Image Size](https://img.shields.io/docker/image-size/palashdeb/omnivoice-studio/latest?logo=docker&label=image%20size)](https://hub.docker.com/r/palashdeb/omnivoice-studio/tags)
+[![GitHub Stars](https://img.shields.io/github/stars/debpalash/VoiceStudio?logo=github&color=f59e0b)](https://github.com/debpalash/VoiceStudio)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](https://github.com/debpalash/VoiceStudio/blob/main/LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/bzQavDfVV9)
+
+[![debpalash/VoiceStudio on Trendshift](https://trendshift.io/api/badge/trendshift/repositories/28176/daily?language=Python)](https://trendshift.io/repositories/28176?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-28176)
+
+![VoiceStudio — the open-source ElevenLabs alternative](https://raw.githubusercontent.com/debpalash/VoiceStudio/main/.github/assets/social-preview.png)
+
+VoiceStudio processes media on your own hardware and automatically chooses CUDA,
+ROCm, or CPU. Data leaves the machine only after you explicitly agree. PostHog
+analytics collect content-free metadata only when you accept the first-run
+consent question; declining or skipping keeps analytics disabled, and
+`-e OMNIVOICE_ANALYTICS_DISABLED=1` turns them off completely. This headless
+server image runs FastAPI with the pre-built React interface over HTTP, making
+it suitable for an AMD64 homelab or GPU server that you control from a browser.
+
+Images are built per architecture. The main image and its `:rocm` variant
+exist for `linux/amd64` only. For NVIDIA hardware built on ARM, such as a DGX
+Spark (GB10) or a GH200 / GB200 server, pull `:stable-cuda-arm64`, which is a
+native `linux/arm64` build. On an Apple Silicon Mac, a Linux container cannot
+reach the GPU through either MPS or MLX, so for accelerated inference install
+the [native macOS app](https://github.com/debpalash/VoiceStudio/blob/main/docs/install/macos.md)
+instead. Any other ARM64 machine has no native image: run the container on an
+AMD64 host, or expect emulation to make it dramatically slower. Check the
+[architecture notes](https://github.com/debpalash/VoiceStudio/blob/main/docs/install/docker.md#architecture)
+before you pick a tag.
+
+> The desktop app's auto-updater is **desktop-only** and does not apply to this
+> image — to update, pull a newer tag and recreate the container.
+
+**What you need:** 8 GB RAM (16 GB+ recommended), ~10 GB free disk for model
+weights + cache (20 GB+ comfortable), and optionally a GPU — 4 GB VRAM works
+(TTS auto-offloads to CPU), 8 GB+ is comfortable. No GPU at all is fine too:
+the entire pipeline runs on CPU, just slower. Pull size: ~5 GB compressed
+(CUDA/CPU image), ~15 GB for the `:rocm` variant.
+
+## See it in action
+
+![Switching TTS engines from the VoiceStudio status bar](https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/0.5.0/quick-switch.gif)
+
+| Model catalogue | Save a gallery voice |
+|---|---|
+| ![VoiceStudio Model Catalogue](https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/0.5.0/catalogue.png) | ![Saving a gallery voice as a local profile](https://raw.githubusercontent.com/debpalash/VoiceStudio/main/docs/media/0.5.0/gallery-save.png) |
+
+---
+
+## Quick start (CPU)
+
+```bash
+export OMNIVOICE_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
+docker run -d --name omnivoice \
+  -p 127.0.0.1:3900:3900 \
+  -e OMNIVOICE_API_KEY="$OMNIVOICE_API_KEY" \
+  -v omnivoice-data:/app/omnivoice_data \
+  palashdeb/omnivoice-studio:stable
+```
+
+Open <http://localhost:3900>. The first run downloads a few GB of model weights —
+follow `docker logs -f omnivoice` to watch progress. When the UI asks for an
+API key, paste the generated value; settings and diagnostic actions require
+this administrator session because Docker NAT hides the browser's true
+loopback origin.
+
+## Quick start (NVIDIA GPU)
+
+```bash
+export OMNIVOICE_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
+docker run -d --name omnivoice --gpus all \
+  -p 127.0.0.1:3900:3900 \
+  -e OMNIVOICE_API_KEY="$OMNIVOICE_API_KEY" \
+  -v omnivoice-data:/app/omnivoice_data \
+  palashdeb/omnivoice-studio:stable
+```
+
+GPU mode needs the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+on the host.
+
+## Quick start (AMD GPU / ROCm)
+
+AMD GPUs use the dedicated `:rocm` image variant (the default image is
+CUDA-only and runs on CPU on AMD hardware). No toolkit needed — pass the GPU
+through as device nodes; the host only needs the `amdgpu` kernel driver:
+
+```bash
+export OMNIVOICE_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
+docker run -d --name omnivoice \
+  --device /dev/kfd --device /dev/dri \
+  -p 127.0.0.1:3900:3900 \
+  -e OMNIVOICE_API_KEY="$OMNIVOICE_API_KEY" \
+  -v omnivoice-data:/app/omnivoice_data \
+  palashdeb/omnivoice-studio:stable-rocm
+```
+
+Podman users: same two `--device` flags (Quadlet: `AddDevice=/dev/kfd` +
+`AddDevice=/dev/dri`). On RDNA3 consumer cards (RX 7900 XTX/XT), add
+`-e HSA_OVERRIDE_GFX_VERSION=11.0.0` if the GPU isn't detected; never set it
+on RX 9000 (RDNA4) cards, which the image supports natively — details in
+the [Docker install guide](https://github.com/debpalash/VoiceStudio/blob/main/docs/install/docker.md).
+
+There's also a Compose file in the repo with `cpu` / `gpu` / `rocm` profiles;
+see the [Docker install guide](https://github.com/debpalash/VoiceStudio/blob/main/docs/install/docker.md).
+
+---
+
+## Image tags
+
+| Tag | What you get |
+|-----|--------------|
+| `:latest` | **Rolling preview** — the latest commit on `main`, at or ahead of the last release. Only `main` builds move it; publishing a release never does. Pin `:stable` for production. |
+| `:main` | Alias of the same rolling `main` build as `:latest` |
+| `:stable` | Most recent stable release — moves when a GitHub Release is published |
+| `:0.5.6` | Exact release version, published with its GitHub Release |
+| `:0.5` | Latest released patch within the `0.5` minor |
+| `:sha-xxxxxxx` | Exact commit — produced by every image build (main, releases, manual runs) |
+| `:rocm` | **AMD GPU (ROCm) build** of the rolling preview — the ROCm analogue of `:latest` |
+| `:stable-rocm`, `:0.5.6-rocm`, `:0.5-rocm`, `:sha-xxxxxxx-rocm` | ROCm builds of the corresponding tags above |
+| `:cuda-arm64` | **ARM64 NVIDIA GPU build** (`linux/arm64`, DGX Spark / Grace) of the rolling preview |
+| `:stable-cuda-arm64`, `:0.5.6-cuda-arm64`, `:0.5-cuda-arm64`, `:sha-xxxxxxx-cuda-arm64` | ARM64 NVIDIA builds of the corresponding tags above |
+| `:beta`, `:0.5.9-beta.1` | Newest beta prerelease and its exact version. A beta never moves `:stable` or `:0.5`; `-rocm` and `-cuda-arm64` forms exist too (`:beta-rocm`, `:beta-cuda-arm64`) |
+
+Release tags are published only when the GitHub Release is published.
+Preview builds always come from `main` and never version-sort below `:stable`,
+so upgrades flow naturally. The same images and tags
+are mirrored on GHCR at
+[`ghcr.io/debpalash/voicestudio`](https://github.com/debpalash/VoiceStudio/pkgs/container/voicestudio).
+The former `ghcr.io/debpalash/omnivoice-studio` path remains a compatible alias.
+
+---
+
+## What's inside
+
+- **🎙️ Voice Cloning** — a 3-second clip mirrors any voice, zero-shot, in 646 languages.
+- **🎨 Voice Design** — dial in gender, age, accent, pitch, speed, emotion, and dialect.
+- **🎬 Video Dubbing** — YouTube URL or file → transcribe → translate → re-voice → MP4.
+- **📖 Audiobook & long-form** — script → plan → loudness-normalized M4B with chapters, metadata, and cover art.
+- **🔊 Vocal Isolation** — Demucs splits speech from music and keeps the background.
+- **👥 Speaker Diarization** — Pyannote + WhisperX auto-identify who said what.
+- **📦 Batch Queue** — drop 50 videos and walk away; per-job progress.
+- **🤖 MCP Server** — drive VoiceStudio from Claude, Cursor, or any MCP client.
+- **🛡️ AI Watermark** — invisible AudioSeal (Meta) marking that survives compression.
+- **⚡ GPU Auto-Detect** — selects CUDA, ROCm, or CPU and auto-offloads on GPUs with 8 GB VRAM or less.
+- **🧩 Extensible** — subclass `TTSBackend` to add any engine in ~50 lines.
+
+Multiple TTS engines ship out of the box (IndexTTS, CosyVoice, Supertonic-3, and
+more), auto-detected and selectable in Settings.
+
+---
+
+## Volumes worth persisting
+
+| Mount | Purpose |
+|-------|---------|
+| `omnivoice-data:/app/omnivoice_data` | Project DB, user voices, settings, encrypted HF token, and the Hugging Face model cache — survives upgrades |
+
+The image sets `HF_HOME=/app/omnivoice_data/huggingface`, so models already
+persist in that volume. To reuse an existing host cache instead, bind it with
+`-v ~/.cache/huggingface:/app/omnivoice_data/huggingface` (files the container
+adds there are root-owned).
+
+---
+
+## Configuration & networking
+
+- The container binds uvicorn to `0.0.0.0` internally; the host-side
+  `127.0.0.1:3900:3900` mapping is what keeps it loopback-only. Change the
+  mapping to `0.0.0.0:3900:3900` for LAN access.
+- Behind a reverse proxy on a different origin, set
+  `-e OMNIVOICE_PUBLIC_API_BASE=https://api.your-host.example` so the UI targets
+  the right API base (works on the prebuilt image; no rebuild needed), and
+  `-e OMNIVOICE_ALLOWED_ORIGINS=https://ui.your-host.example` so the API accepts
+  the UI's requests, video previews and downloads included.
+- The image ships with `OMNIVOICE_SERVER_MODE=1`, which relaxes the desktop-only
+  loopback-origin gate so the admin UI works through Docker's NAT. Set it to `0`
+  if you front the container with your own loopback auth proxy.
+- Without an API key, open VoiceStudio by `localhost` or an IP address; to use a
+  host name such as `http://nas.lan:3900`, add `-e OMNIVOICE_ALLOWED_HOSTS=nas.lan`.
+  URL imports refuse private-network addresses unless
+  `-e OMNIVOICE_ALLOW_PRIVATE_URL_IMPORTS=1` is set.
+- For LAN or internet-facing deployments, set a long random
+  `OMNIVOICE_API_KEY` and pass the same key through the browser's login prompt.
+  A six-digit share PIN is also available for casual LAN access, but it does
+  not authorize administration or dictation; see the
+  [API authentication guide](https://github.com/debpalash/VoiceStudio/blob/main/docs/api-auth.md).
+- The share PIN also applies to the host's own browser, which reaches the
+  container from Docker's gateway address. On a host only you use, with the
+  port published on `127.0.0.1`, `-e OMNIVOICE_TRUST_HOST_LOOPBACK=1` lets that
+  browser skip the PIN; other machines still need it. Read the
+  [risks](https://github.com/debpalash/VoiceStudio/blob/main/docs/install/docker.md#trust-host-loopback)
+  first.
+
+> **Security:** Loopback-only publishing is the safe default. Before exposing
+> VoiceStudio on a trusted LAN, configure `OMNIVOICE_API_KEY`. On any untrusted
+> network, plain HTTP is not safe for the API key or session cookie. Keep the
+> backend on an encrypted private overlay such as Tailscale/ZeroTier; do not
+> expose it directly to the public internet.
+
+---
+
+## Links
+
+- **Source & full install docs:** <https://github.com/debpalash/VoiceStudio>
+- **Docker guide:** <https://github.com/debpalash/VoiceStudio/blob/main/docs/install/docker.md>
+- **Troubleshooting:** <https://github.com/debpalash/VoiceStudio/blob/main/docs/install/troubleshooting.md>
+- **Community / support:** [Discord](https://discord.gg/bzQavDfVV9)
+
+VoiceStudio is in active beta and licensed under AGPL-3.0.

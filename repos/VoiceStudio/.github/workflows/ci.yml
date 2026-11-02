@@ -1,0 +1,776 @@
+# PR-gated continuous integration for the maintained Electron desktop,
+# shared backend, web frontend and native bridge.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # The merge queue tests each PR on top of the latest main (and the PRs queued
+  # before it) once, instead of every PR re-running CI each time main moves.
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's older run (a mass rebase of ~65 branches
+# once queued 360 runs, most of them for commits already replaced). Pushes to main
+# and manual runs are keyed by commit, so every main commit still gets its own CI.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Run all JavaScript actions on Node 24 (GH deprecates Node 20 in Sep 2026).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # A pull request from a fork waits here for a maintainer to approve the
+  # `external-pr` environment (Settings -> Environments -> required reviewers)
+  # before any other job gets a runner. Same-repository branches skip this job
+  # and start at once. Without reviewers configured the environment approves
+  # itself, so the gate is inert until the owner sets them.
+  approve-external:
+    name: Approve external pull request
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: external-pr
+    steps:
+      - run: echo "Approved by a maintainer"
+
+  # A pull request whose every changed file is on this allowlist cannot affect the
+  # Electron jobs: they run against fake JavaScript backends, not the Python one.
+  # Those jobs (UI crawler, Desktop UI, native package, and the Electron steps of
+  # the test job) are skipped for such PRs; they take ~45 runner-minutes. Anything
+  # else, every push to main and every manual run still runs the full matrix, and
+  # if detection fails for any reason everything runs (`!= 'false'` below).
+  # Other workflow files are on the allowlist (they cannot change what these jobs
+  # do); ci.yml and electron-*.yml are not. pyproject.toml is not either (the
+  # packaging contract parses its `readme =` key), and neither is backend/assets/
+  # (the renderer smokes play its sample WAV).
+  changes:
+    name: Changed paths
+    needs: approve-external
+    # A rejected approval skips this job; every job below treats that as "stop".
+    if: ${{ !cancelled() && needs.approve-external.result != 'failure' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      electron: ${{ steps.detect.outputs.electron }}
+      runtime: ${{ steps.scope.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/ci_scope.py
+      - id: detect
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Any doubt means "true". Only an explicit "nothing outside the allowlist"
+          # from grep (exit 1) produces "false". Every pipe below ends in a command
+          # that reads ALL its input: an early-exit consumer (grep -q, head) makes the
+          # producer die of SIGPIPE, which `pipefail` reports as a failure and, on a
+          # large file list, silently turned "a file was deleted" into "no match".
+          electron=true
+          if [ "$EVENT" = pull_request ]; then
+            if rows=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | [.status, .filename] | @tsv') && [ -n "$rows" ]; then
+              total=$(printf '%s\n' "$rows" | wc -l)
+              status_rc=0
+              printf '%s\n' "$rows" | cut -f1 | sort -u | grep -v -x -E 'added|modified' > /dev/null || status_rc=$?
+              if [ "$total" -ge 3000 ]; then
+                echo "3000+ files (the API truncates here): running everything"
+              elif [ "$status_rc" -ne 1 ]; then
+                # Only plain edits and additions are safe. Electron checks assert that some
+                # root files exist, and a rename out of electron/ lists only the new path.
+                echo "a file was deleted, renamed, copied or changed type (status check rc=$status_rc): running everything"
+              else
+                rc=0
+                outside=$(printf '%s\n' "$rows" | cut -f2 | grep -v -P '^(backend/(?!assets/)|omnivoice/|docs/|mobile/|\.github/ISSUE_TEMPLATE/|\.github/scripts/|\.github/[^/]+\.md$|tests/.*\.py$|scripts/[^/]+\.py$|[^/]+\.md$|Makefile$|uv\.lock$|\.github/workflows/(?!(ci|electron-[a-z-]+)\.yml$)[^/]+\.yml$)') || rc=$?
+                if [ "$rc" -eq 1 ]; then
+                  electron=false
+                elif [ "$rc" -eq 0 ]; then
+                  echo "Electron jobs run because of (first 5):"
+                  # Indented so a hostile file name can never start a workflow command.
+                  printf '%s\n' "$outside" | sed -n '1,5s/^/    /p'
+                else
+                  echo "path matching failed (grep exit $rc): running everything"
+                fi
+              fi
+            fi
+          fi
+          echo "electron=$electron" >> "$GITHUB_OUTPUT"
+          echo "electron jobs: $electron"
+
+  installer:
+    name: Electron installer contracts
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' && needs.changes.outputs.runtime != 'false' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Shell installers and Worker routing
+        working-directory: electron
+        run: |
+          sh -n ../scripts/install.sh && bash -n ../scripts/uninstall.sh
+          node --test tests/shell-installer.test.mjs tests/installer-worker.test.mjs
+      - name: PowerShell scripts parse
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in git ls-files '*.ps1') {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) { Write-Host "::error file=$file,line=$($e.Extent.StartLineNumber)::$($e.Message)"; $failed = $true }
+          }
+          if ($failed) { exit 1 }
+      - name: PowerShell installer flows
+        shell: pwsh
+        run: ./electron/tests/powershell-installer.ps1
+
+  test-python:
+    name: Tests (Python)
+    needs: changes
+    # Must report even if `changes` failed, so a detection error never skips the gate;
+    # only a rejected external approval (changes skipped) stops it.
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' && needs.changes.outputs.runtime != 'false' }}
+    runs-on: ubuntu-22.04
+    env:
+      # Same restricted-network resilience the smoke matrix already sets. This
+      # job resolves the same direct-URL dependency and had none of it, which
+      # is why it was the one that kept dying (see scripts/uv-sync-retry.sh).
+      UV_HTTP_TIMEOUT: "120"
+      UV_HTTP_RETRIES: "5"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      # enable-cache persists ~/.cache/uv across runs, keyed on uv.lock —
+      # turns `uv sync` from ~45 s cold to ~5 s warm.
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # Node 22 is needed for --experimental-strip-types so node:test can
+      # import .ts files directly from electron/src/shared/api/*.
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      # Cache the resolved .debs for media and Snap artifact tests.
+      - name: System deps (ffmpeg and squashfs-tools)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: ffmpeg squashfs-tools
+          version: 1.0
+
+      - name: Install Python deps
+        # `--all-extras` installs optional engine deps (e.g. `supertonic`)
+        # so their tests can exercise the real import path, not the
+        # "package not installed" fallback. Smoke job below stays on bare
+        # `uv sync` because smoke only hits /health + fixture profiles.
+        #
+        # Retried because one dependency — en-core-web-sm — resolves to a
+        # direct GitHub release URL, and github.com intermittently answers
+        # `http2 error: refused stream before processing any application
+        # logic`. uv's own 3 retries all land inside the same few seconds and
+        # fail together, which has cost otherwise-green runs (#1517, #1518).
+        # Backing off between whole attempts is what actually clears it.
+        run: bash scripts/uv-sync-retry.sh --all-extras
+
+      # HF_HUB_OFFLINE=1 is a recurrence guard, not an optimization: a test
+      # that reaches huggingface.co fails fast and loud instead of silently
+      # downloading model weights mid-suite (the preload_model() Hub-probe
+      # bug pulled the full 2.3 GB k2-fsa/OmniVoice checkpoint into every
+      # networked empty-cache run before it was caught). All legitimate HF
+      # interactions in tests are stubbed; anything that trips this is a
+      # test-isolation bug.
+      # `-n auto` runs tests/ in parallel (one worker per CPU; 10 min serial ->
+      # ~3 min on a 4-core runner, with identical results). backend/tests/ below
+      # stays serial: one test there depends on another's leftover state and
+      # fails when run in isolation, which parallel scheduling exposes.
+      - name: Run pytest
+        run: uv run --no-sync pytest tests/ -q --tb=short -n auto
+        env:
+          HF_HUB_OFFLINE: "1"
+
+      # `backend/tests/` mounts routers on bare FastAPI apps (no heavy main
+      # import chain) with a hermetic data dir from its conftest.py. It no
+      # longer stubs sys.modules, so mixed sessions with tests/ are safe;
+      # the separate session is kept for cheaper, clearer CI output.
+      - name: Run pytest (backend/tests, isolated)
+        run: uv run --no-sync pytest backend/tests/ -q --tb=short
+        env:
+          HF_HUB_OFFLINE: "1"  # same no-silent-downloads guard as tests/
+
+      # Cache ~/.bun/install/cache keyed on bun.lock — `bun install` drops
+      # from ~15 s cold to near-instant on warm cache.
+      - name: Cache bun deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Electron deps
+        # --frozen-lockfile so an Electron workspace change that forgets to
+        # regenerate the root bun.lock fails HERE (fast) instead of only in the
+        # Docker build (deploy/Dockerfile), which is what reddened main on #485.
+        run: bun install --frozen-lockfile
+
+      # Mobile theme tokens are generated from the Electron theme and need its
+      # deps installed, so the pytest copy of this check skips before this point.
+      - name: Mobile theme tokens match Electron
+        run: bun --no-install scripts/export-mobile-tokens.ts --check
+
+      - name: Mobile maintainer cards match Electron
+        run: bun --no-install scripts/export-mobile-contributors.ts --check
+
+
+  # Electron checks run beside the Python job instead of after it (~16 min serial
+  # -> the longer of the two). They need no Python: every backend they touch is a
+  # JavaScript fake. `test` below keeps the required check name and gates on both.
+  test-electron:
+    name: Tests (Electron)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' && needs.changes.outputs.electron != 'false' && needs.changes.outputs.runtime != 'false' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      # Cache the resolved .debs for media and Snap artifact tests.
+      - name: System deps (ffmpeg and squashfs-tools)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: ffmpeg squashfs-tools
+          version: 1.0
+
+      # Cache ~/.bun/install/cache keyed on bun.lock — `bun install` drops
+      # from ~15 s cold to near-instant on warm cache.
+      - name: Cache bun deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Electron deps
+        # --frozen-lockfile so an Electron workspace change that forgets to
+        # regenerate the root bun.lock fails HERE (fast) instead of only in the
+        # Docker build (deploy/Dockerfile), which is what reddened main on #485.
+        run: bun install --frozen-lockfile
+
+      # node:test suites for shared renderer modules (tests/frontend/*.test.mjs).
+      # Node 22 strips TypeScript types natively; imports need explicit `.ts`.
+      - name: Frontend unit tests
+        run: bun run test:frontend
+
+      # Electron used to be built only after a release started, so renderer,
+      # preload and packaging regressions could pass the required PR gate.
+      # Keep this command shared with electron-release.yml through the root script.
+      - name: Electron typecheck, tests and production contract
+        run: bun run check:electron
+
+      - name: Snap artifact repair regression
+        run: node --test electron/tests/snap-artifact-verification.test.mjs electron/tests/snap-launcher.test.mjs electron/tests/snap-store-packaging.test.mjs electron/tests/omnivoice-tts-bundle.test.mjs
+
+  # Split from Tests (Electron) so the two ~7 minute halves run side by side.
+  # The browser workflow smokes need only the checked-out sources.
+  electron-smokes:
+    name: Electron renderer smokes
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' && needs.changes.outputs.electron != 'false' && needs.changes.outputs.runtime != 'false' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      # Cache the resolved .debs for media and Snap artifact tests.
+      - name: System deps (ffmpeg and squashfs-tools)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: ffmpeg squashfs-tools
+          version: 1.0
+
+      # Cache ~/.bun/install/cache keyed on bun.lock — `bun install` drops
+      # from ~15 s cold to near-instant on warm cache.
+      - name: Cache bun deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Electron deps
+        # --frozen-lockfile so an Electron workspace change that forgets to
+        # regenerate the root bun.lock fails HERE (fast) instead of only in the
+        # Docker build (deploy/Dockerfile), which is what reddened main on #485.
+        run: bun install --frozen-lockfile
+
+      # Browser workflow smokes exercise the maintained Electron renderer.
+      - name: Install Playwright chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Electron renderer workflow smokes
+        shell: bash
+        run: |
+          set -euo pipefail
+          export OMNIVOICE_PORT=3999
+          export VOICESTUDIO_UI_URL=http://localhost:3912
+          export PLAYWRIGHT_CHANNEL=chromium
+          # Smokes run with the Hugging Face hub offline, caching into a throwaway directory
+          # so neither the network nor the runner's real model cache is ever involved.
+          smoke_hub_cache=$(mktemp -d)
+          export HF_HUB_CACHE="$smoke_hub_cache" HF_HUB_OFFLINE=1
+          bun run --cwd electron smoke:server > /tmp/voicestudio-electron-smoke.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in {1..60}; do
+            if curl --fail --silent --show-error "$VOICESTUDIO_UI_URL" >/dev/null; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl --fail --silent --show-error "$VOICESTUDIO_UI_URL" >/dev/null || {
+            cat /tmp/voicestudio-electron-smoke.log
+            exit 1
+          }
+          # Every smoke must be classified (run here, or needs a backend/native app).
+          node --test electron/tests/smoke-inventory.test.mjs electron/tests/ui-crawler.test.mjs
+          # Runs every offline renderer smoke; it serves /api from a fake backend on $OMNIVOICE_PORT.
+          node electron/tests/run-renderer-smokes.mjs
+
+  # The required check. Its name is what branch protection matches, so it stays
+  # "Tests (backend + frontend)" even though the work now runs in two jobs.
+  test:
+    name: Tests (backend + frontend)
+    needs: [changes, test-python, test-electron, electron-smokes]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      RUNTIME_NEEDED: ${{ needs.changes.outputs.runtime }}
+      CHANGES_RESULT: ${{ needs.changes.result }}
+      PYTHON: ${{ needs.test-python.result }}
+      ELECTRON: ${{ needs.test-electron.result }}
+      SMOKES: ${{ needs.electron-smokes.result }}
+      ELECTRON_NEEDED: ${{ needs.changes.outputs.electron }}
+    steps:
+      - name: Both test jobs passed
+        run: |
+          echo "Python: $PYTHON, Electron: $ELECTRON, smokes: $SMOKES (needed: $ELECTRON_NEEDED)"
+          if [ "$RUNTIME_NEEDED" = false ] && [ "$CHANGES_RESULT" = success ]; then
+            for result in "$PYTHON" "$ELECTRON" "$SMOKES"; do
+              [ "$result" = skipped ] || exit 1
+            done
+            echo "Documentation/test-only change: runtime CI skipped."
+            exit 0
+          fi
+          [ "$PYTHON" = success ] || exit 1
+          # Skipped is only acceptable when change detection said nothing in this
+          # PR can affect the Electron jobs.
+          for result in "$ELECTRON" "$SMOKES"; do
+            [ "$result" = success ] || { [ "$result" = skipped ] && [ "$ELECTRON_NEEDED" = false ]; } || exit 1
+          done
+
+  # Clicks every button on every route under four backend fault modes and fails
+  # on stuck spinners, buttons left disabled, silent failures, crashes and
+  # console errors
+  # (electron/tests/ui-crawler.mjs). Three route shards, not a mode x shard
+  # matrix: each shard still runs every fault mode concurrently in one process,
+  # and a matrix of twelve jobs per push queued behind the runner limit for hours.
+  ui-crawler:
+    name: UI crawler (${{ matrix.shard }}/3)
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' && needs.changes.outputs.electron != 'false' && needs.changes.outputs.runtime != 'false' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      - name: Cache bun deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Electron deps
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Crawl every button
+        shell: bash
+        env:
+          OMNIVOICE_PORT: '3999'
+          VOICESTUDIO_UI_URL: http://localhost:3912
+          VOICESTUDIO_CRAWL_SHARD: ${{ matrix.shard }}/3
+        run: |
+          set -euo pipefail
+          bun run --cwd electron smoke:server > /tmp/voicestudio-crawler-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in {1..60}; do
+            curl --fail --silent "$VOICESTUDIO_UI_URL" >/dev/null && break
+            sleep 0.25
+          done
+          curl --fail --silent --show-error "$VOICESTUDIO_UI_URL" >/dev/null || {
+            cat /tmp/voicestudio-crawler-server.log
+            exit 1
+          }
+          node electron/tests/ui-crawler.mjs
+
+  linux-native-package:
+    name: Linux native package
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' && needs.changes.outputs.electron != 'false' && needs.changes.outputs.runtime != 'false' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: native/desktop-bridge -> target
+          key: linux-native-package
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxdo-dev libxtst-dev libx11-dev libxkbcommon-dev libwayland-dev libssl-dev pkg-config
+      - name: Verify relocation without build-time libraries
+        run: node --test electron/tests/native-linux-libraries.test.mjs
+      - name: Build and validate real Linux native package
+        run: |
+          cargo build --locked --release --manifest-path native/desktop-bridge/Cargo.toml
+          node electron/tests/native-linux-package.mjs
+
+  # ── Desktop UI (real Electron app on every OS) ───────────────────────────
+  # Launches the unpackaged app with Playwright against a fake backend and runs
+  # one shared suite, so preload/IPC/main-process/user-data regressions on
+  # macOS and Windows surface on the PR instead of at release time. Packaged
+  # installers are covered separately by packaged-smoke.mjs on release paths.
+  electron-ui:
+    name: Desktop UI (${{ matrix.label }})
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.result != 'skipped' && needs.changes.outputs.electron != 'false' && needs.changes.outputs.runtime != 'false' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, label: macOS }
+          - { os: windows-2022, label: Windows }
+          - { os: ubuntu-24.04, label: Linux }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      - name: Cache bun deps
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Electron deps
+        run: bun install --frozen-lockfile
+
+      - name: Development launcher tests
+        working-directory: electron
+        run: bunx --no-install vp test --run src/main/dev-bundle.test.ts src/main/dev-instance.test.ts
+
+      - name: Build Electron app
+        run: bun run --cwd electron build
+
+      # `bun install` does not run Electron's postinstall here, so fetch the binary the tests launch.
+      - name: Download Electron binary
+        run: node electron/node_modules/electron/install.js
+
+      # Ubuntu 24.04 restricts unprivileged user namespaces, which stops
+      # Electron's sandbox from starting. Relax it on the runner; the app
+      # itself is never launched with --no-sandbox.
+      - name: Allow Electron sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Desktop UI tests
+        run: |
+          # The output is kept in the failure artifact: a crashed run's log is otherwise
+          # unavailable until the whole workflow finishes.
+          mkdir -p electron/test-results
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a bun run --cwd electron test:desktop-ui 2>&1 | tee electron/test-results/desktop-ui.log
+          else
+            bun run --cwd electron test:desktop-ui 2>&1 | tee electron/test-results/desktop-ui.log
+          fi
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-ui-${{ matrix.label }}
+          path: electron/test-results/
+          if-no-files-found: ignore
+
+  # ── Cross-platform Python runtime smoke (Phase 0 GATE-02) ───────────────
+  # Loads the frozen tests/fixtures/omnivoice_data/ fixture and boots the
+  # FastAPI app in-process via TestClient on macOS/Windows/Linux. Catches
+  # platform-specific Python import / path bugs that the Linux-only `test`
+  # job above misses. Narrow scope (tests/smoke/ only) — full pytest stays
+  # on Linux until Phase 1's INST-01 lands setuptools for WhisperX.
+  smoke-matrix:
+    name: Smoke (${{ matrix.label }})
+    # After the Python tests (the fast-failing half), not the whole test gate: waiting for
+    # the Electron jobs too left these 1-4 minute jobs idle for ~9 minutes of every run.
+    needs: test-python
+    # Internal approval is intentionally skipped; override implicit success()
+    # so that skipped ancestor does not silently skip these code checks too.
+    if: ${{ !cancelled() && needs.test-python.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            label: macOS
+            backend_supported: true
+          - os: macos-15-intel
+            label: macOS Intel
+            backend_supported: false
+          - os: windows-2022
+            label: Windows
+            backend_supported: true
+          - os: ubuntu-22.04
+            label: Linux
+            backend_supported: true
+    runs-on: ${{ matrix.os }}
+    # Priced for a COLD `uv sync`, on every platform.
+    #
+    # The previous split (Windows 25, Linux/macOS 10) came from a warm-cache
+    # measurement — Linux and macOS finish in ~65 s when setup-uv restores its
+    # cache, so 10 looked generous. Then run 30439640107 hit
+    # "Failed to restore: Cache service responded with 400", Linux installed
+    # torch from scratch, and the leg was killed at 10m17s. The 65 s was the
+    # cache, not the platform.
+    #
+    # A cache miss is not rare enough to treat as an outage (GitHub's cache
+    # service 400s, a lockfile change invalidates the key, a new runner image
+    # starts empty), and a timeout here is self-perpetuating: the leg dies
+    # before the post-step saves the cache, so the next run is cold too.
+    # 25 everywhere is still bounded — a genuinely wedged job is caught in
+    # minutes, not hours — and warm runs land nowhere near it.
+    timeout-minutes: 25
+    env:
+      # Restricted-network resilience (RESEARCH Pitfall #6) — keeps uv from
+      # giving up on the first slow PyPI / python-build-standalone fetch.
+      UV_HTTP_TIMEOUT: "120"
+      UV_HTTP_RETRIES: "5"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3.2.4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # ffmpeg + libsndfile are needed by soundfile / audio fixtures even
+      # though the silence WAV doesn't decode anything heavy — keeps test
+      # collection from import-erroring on optional audio modules.
+      - name: System deps (macOS)
+        if: runner.os == 'macOS' && matrix.backend_supported
+        run: brew install ffmpeg libsndfile || true
+
+      - name: System deps (Windows)
+        if: runner.os == 'Windows' && matrix.backend_supported
+        shell: bash
+        run: |
+          # The community chocolatey feed 50x's intermittently (broke PR runs on
+          # 2026-07-20 and 2026-07-28) — retry with backoff before failing.
+          #
+          # Test the OUTCOME, not choco's exit code. On 2026-07-28 the feed
+          # returned 503, choco reported "Unable to find package 'ffmpeg'" and
+          # "installed 0/0 packages" — and still exited 0. The `&& break` that
+          # was supposed to guard this fired on the first attempt, no retry ran,
+          # and the job died one line later on `ffmpeg: command not found`.
+          # A retry that trusts a lying exit code is not a retry.
+          for i in 1 2 3; do
+            choco install ffmpeg -y --no-progress || true
+            hash -r 2>/dev/null || true
+            if command -v ffmpeg >/dev/null 2>&1; then break; fi
+            # No backoff after the last attempt — there is no fourth try to
+            # wait for, and sleeping 90s only delays an already-doomed job.
+            if [ "$i" -eq 3 ]; then
+              echo "choco failed to produce ffmpeg after 3 attempts"
+              break
+            fi
+            echo "choco attempt $i did not produce ffmpeg — retrying in $((i * 30))s"
+            sleep $((i * 30))
+          done
+          # Chocolatey is one distribution channel, not the dependency. When
+          # its feed is down across every retry (2026-08-13: three attempts,
+          # three 'installed 0/1'), fall back to the static gyan.dev release
+          # build GitHub mirror — the same binary, no feed in the path.
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            echo "::warning::choco feed down — falling back to static ffmpeg build"
+            curl -fsSL --retry 3 -o /tmp/ffmpeg.zip \
+              https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip
+            unzip -q /tmp/ffmpeg.zip -d /tmp/ffmpeg
+            bindir=$(dirname "$(find /tmp/ffmpeg -name ffmpeg.exe | head -1)")
+            echo "$bindir" >> "$GITHUB_PATH"
+            export PATH="$bindir:$PATH"
+          fi
+          ffmpeg -version
+
+      - name: System deps (Linux)
+        if: runner.os == 'Linux' && matrix.backend_supported
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: ffmpeg libsndfile1
+          version: 1.0
+
+      - name: Install Python deps (including PocketTTS)
+        # PocketTTS is an opt-in engine, but installing its pinned extra here
+        # proves that the same dependency set resolves on every supported local
+        # backend host. The Intel-Mac leg separately pins the documented
+        # unsupported contract: its UI is a remote-backend client only (#889).
+        if: matrix.backend_supported
+        run: bash scripts/uv-sync-retry.sh --extra pockettts
+
+      - name: Verify the documented Intel Mac contract
+        if: ${{ !matrix.backend_supported }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import platform
+          import tomllib
+
+          assert platform.system() == "Darwin"
+          assert platform.machine() == "x86_64"
+          root = Path.cwd()
+          project = tomllib.loads((root / "pyproject.toml").read_text("utf-8"))
+          extra = project["project"]["optional-dependencies"]["pockettts"]
+          assert extra == [
+              "pocket-tts==2.1.0 ; sys_platform != 'darwin' or platform_machine != 'x86_64'"
+          ]
+          docs = (root / "docs/install/macos.md").read_text("utf-8")
+          assert "Intel Macs are not supported" in docs
+          PY
+
+      - name: Run smoke tests
+        # Exercise credential paths and the Windows accept guard natively.
+        if: matrix.backend_supported
+        run: uv run --no-sync pytest tests/smoke/ tests/test_hf_token_cache_paths.py tests/test_win_accept_guard.py tests/test_ios_testflight.py -q --tb=short
+        env:
+          HF_HUB_OFFLINE: "1"  # same no-silent-downloads guard as the main pytest job
+          HF_HUB_CACHE: ${{ runner.temp }}/pockettts-empty-hf-cache
+
+      # The isolated backend session, on Windows. The `test` job runs it on
+      # Linux only, which is how four tests that CANNOT pass on Windows shipped
+      # unnoticed: two reach for os.WNOHANG and os.waitid (POSIX-only, an
+      # AttributeError before the first assertion), one asserts a RuntimeError
+      # that `backend_drain_fd` returns None instead of raising off POSIX, and
+      # one raced the OS reaping a crashed child — a race Linux won and Windows
+      # lost every time. All four were invisible to CI and hit every Windows
+      # contributor on their first `pytest` run. Forty seconds closes the class.
+      - name: Isolated backend session (Windows)
+        if: runner.os == 'Windows' && matrix.backend_supported
+        run: uv run --no-sync pytest backend/tests/ -q --tb=short
+        env:
+          HF_HUB_OFFLINE: "1"
+
+      - name: Media-tool installation and lock recovery
+        if: matrix.backend_supported
+        run: uv run --no-sync pytest tests/test_media_tools.py -q --tb=short
+        env:
+          HF_HUB_OFFLINE: "1"
+          HF_HUB_CACHE: ${{ runner.temp }}/media-tools-empty-hf-cache

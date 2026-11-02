@@ -29,6 +29,7 @@
 9. **openverse** — CC0 sound-effect sourcing through the public API (step before any SFX work).
 10. **earshot** — measured listening: realness, match, sync timeline, sound sheet (synthesis side skipped).
 11. **real-sfx** — placement, level and verification rules for real library SFX (library mode only).
+12. **VoiceStudio** — voice-side ideas (room-tone pauses, forced word alignment, signal checks); default engine non-commercial.
 
 ## Sound repos (9–11)
 
@@ -42,3 +43,16 @@
 | **Agent skill included** | – | `skills/earshot`, `skills/real-sound` + MCP | SKILL.md + 7 references |
 | **Synthesis?** | none | ⚠️ `forge`/`sfx`/`kit` make sound in code | ⚠️ bundled uisfx is synthesized (opt-out `--ui library`) |
 | **Best single takeaway** | `license=cc0` at the source + attribution manifest | `realness` + `timeline --cues` sync proof | Audible-start placement + voice-safe + mono check |
+
+## Voice repo (12)
+
+| | VoiceStudio |
+|---|---|
+| **Author** | Palash Debnath (debpalash) / Yupcha Softwares |
+| **License** | AGPL-3.0 app; `omnivoice/` Apache-2.0; default weights CC-BY-NC |
+| **Role** | Generate / clone / design / dub voices; transcribe with word timing |
+| **Language** | Python (FastAPI, uv) + TypeScript (Electron, Bun) |
+| **Fully free / local?** | ✅ CPU/MPS/CUDA; paid commercial licence only for closed-source embedding |
+| **Agent skill included** | `skills/` (voicestudio, voicestudio-maintainer) + MCP at `/mcp` |
+| **Synthesis?** | Voice is TTS by design (our narration already is: Kokoro); no SFX synthesis |
+| **Best single takeaway** | Room-tone pause fill + WhisperX ±10–30 ms word alignment |

@@ -1,0 +1,36 @@
+# Gitleaks config — extends the default ruleset.
+#
+# Every entry below is an exact, anchored non-secret value. PostHog's
+# publishable project token is public by design (owner decision 2026-07-20,
+# #1193). Per PostHog's docs the `phc_` project
+# token is a write-only client key with "no access to your private data" —
+# it ships in every release binary and every official PostHog SDK snippet.
+# It is NOT a credential. Personal keys (`phx_`) remain fully banned.
+# `tests/test_no_committed_analytics_token.py` separately pins the literal to
+# exactly two canonical files and requires both to carry the same value.
+#
+# Rotating the token? The old value stays in git history, so the weekly
+# full-history scan flags it. Add those findings' fingerprints to
+# .gitleaksignore rather than keeping the retired value here.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Exact public/test literals misclassified as generic API keys"
+regexes = [
+  # Public PostHog project token; personal `phx_` keys remain banned.
+  '''^phc_kJK9nFqtwFmB4CYWS4bMDTY7z9P4KCRyiRT7CzJTXm9f$''',
+  # Reviewed immutable Hugging Face commit for the Higgs tokenizer.
+  '''^528e871c2a26c4f0f7773b9754e2e1acae20899d$''',
+  # Deliberately synthetic fixtures that exercise HF-token redaction/storage.
+  '''^hf_abcdefghijklmnopqrstuvwxyz01234567890abcd$''',
+  '''^hf_abcdefghijklmnopqrstuvwxyz0123456789ABCDEF$''',
+  '''^hf_QWERTYUIOPasdfghjklZXCVBNM0123456789xyzAB$''',
+  # NLLB generation length argument, not the value of a credential.
+  '''^max_length=400$''',
+  # Dubbing pane split-position localStorage key, not a credential.
+  '''^omnivoice\.dubSplit\.v1$''',
+  # cryptography's Ed25519 private-key type name, not key material.
+  '''^Ed25519PrivateKey$''',
+]

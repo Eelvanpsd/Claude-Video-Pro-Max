@@ -1,0 +1,32 @@
+# Electron network and credentials
+
+> **Historical context:** this page was written while the Electron and Tauri apps
+> coexisted. Mentions of Tauri helpers, pages, tests and regression results describe
+> that migration period; the Tauri shell has since been removed and the shared code
+> now lives in `electron/src/shared/`. Existing Tauri installs: see the
+> [migration guide](electron-migration.md).
+
+Settings now exposes Network and Credentials in the shared settings shell. Sidebar search includes proxy, Hugging Face, DeepL and Microsoft labels.
+
+Network reads the configured proxy from `/system/info`. Save and Clear update all six upper/lowercase HTTP, HTTPS and ALL proxy variables using the same helper as Tauri. Writes run sequentially; failures stop the sequence and do not show success. A partial failure can be retried or cleared. Saving does not modify the audio-tool executable setting; its link opens Audio tools.
+
+Credentials shows the Hugging Face resolver sources (App, environment, CLI), masked values, active source and validation status. Ordinary reads use local state only. Test now explicitly requests fresh validation. Save clears the password input after success. Clearing asks inline and clears only the app token by default; CLI-file removal requires its separate opt-in switch. Environment credentials remain managed outside the app. Secret inputs never enter draft persistence or browser storage.
+
+DeepL and Microsoft keys/base URLs use the existing persisted `/system/set-env` contract. Field definitions are shared with Tauri. Blank inputs cannot overwrite stored credentials; successful saves clear the input. Provider connectivity is not inferred from a successful settings write.
+
+`electron/tests/connection-settings-smoke.mjs` checks proxy save/reload/clear, partial failure, local token reads, explicit validation, duplicate submission, app-only/CLI clearing, and provider-key submission against mocked routes. The live backend token-state read returned the expected source schema. No real proxy or credential values were changed for verification. Tauri Network and Translation regression tests pass after helper extraction.
+
+Model settings now include Hugging Face mirror selection: automatic routing,
+backend-advertised presets and a custom URL. Settings reads use cached endpoint
+status; the network test runs only on explicit click. Writes use the existing
+backend and honor its restart-required response. Browser fixtures verify saves,
+reload, failed writes and Auto reset. The live read-only schema was verified;
+no real mirror preference was changed or probe triggered during verification.
+
+Model downloads and Engine Ready use the local backend's installation and
+runtime state. Clone, Design, Stories, Audiobook, Batch, profile previews and
+comparison actions share that local readiness contract.
+
+Sharing exposes the backend only after an inline confirmation. It shows the active PIN and LAN addresses, generates QR links locally, supports a configurable share port, and controls the backend's Tailscale serve integration. These actions remain explicit and do not run during settings reads.
+
+Remote backend configuration is owned by Electron main. Connection tests validate a VoiceStudio health response and exchange an optional server master key once for a scoped, expiring session. The renderer clears the key immediately; only the URL is persisted. Main injects the session into production and development HTTP proxy traffic, native watch-folder uploads, and path-bound dictation WebSocket tickets. Switching back to the local backend is always available.

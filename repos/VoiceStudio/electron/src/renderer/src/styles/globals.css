@@ -1,0 +1,696 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import './t3-theme.css';
+
+@source '../../../shared/components/SearchableSelect.jsx';
+@source '../../../shared/components/LanguageFlag.jsx';
+@source '../../../shared/components/VoiceSelector.jsx';
+
+@custom-variant dark (&:is(.dark, .dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  /* VoiceStudio semantic extras (not part of the shadcn base set). */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@theme {
+  --font-sans:
+    'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.25rem;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.25rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-editor: 1rem;
+  --text-editor--line-height: 1.75rem;
+  --color-zinc-25: oklch(99.2% 0 0);
+}
+
+:root {
+  /* Native iOS content geometry; exported alongside the shared mobile palette. */
+  --ios-card-radius: 1.5rem;
+  --ios-field-radius: 1rem;
+  --ios-home-wordmark-size: 1.75rem;
+  --workspace-footer-height: 40px;
+  --control-radius: 0.5rem;
+  --workspace-gap: 1rem;
+  --workspace-inset: 1.5rem;
+  --glass-blur: 12px;
+  --glass-opacity: 80%;
+  --glass-saturation: 1.14;
+  --sidebar-primary: var(--foreground);
+  --sidebar-primary-foreground: var(--sidebar);
+  --sidebar-accent: var(--sidebar-row-hover);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+  --sidebar-ring: var(--ring);
+}
+.dark {
+  --glass-blur: 16px;
+  --glass-saturation: 1.08;
+}
+
+@utility surface-glass {
+  background: var(--popover);
+  @supports (backdrop-filter: blur(1px)) {
+    background: color-mix(in srgb, var(--popover) var(--glass-opacity), transparent);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .surface-glass {
+    background: var(--popover);
+    backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground text-ui antialiased;
+    overscroll-behavior: none;
+    font-optical-sizing: auto;
+  }
+  html {
+    @apply font-sans;
+  }
+  /* One disclosure look: a summary that draws no toggle of its own (no list-none)
+     gets the same turning chevron as the custom ones instead of the native ▶. */
+  summary:not(.list-none) {
+    list-style: none;
+  }
+  summary:not(.list-none)::-webkit-details-marker {
+    display: none;
+  }
+  summary:not(.list-none)::before {
+    content: '';
+    display: inline-block;
+    flex-shrink: 0;
+    width: 0.875em;
+    height: 0.875em;
+    margin-inline-end: 0.375em;
+    vertical-align: -0.125em;
+    background-color: currentColor;
+    opacity: 0.7;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    transition: rotate 150ms ease;
+  }
+  [dir='rtl'] summary:not(.list-none)::before {
+    scale: -1 1;
+  }
+  details[open] > summary:not(.list-none)::before {
+    rotate: 90deg;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    summary:not(.list-none)::before {
+      transition: none;
+    }
+  }
+  /* Electron: the whole window is a drag region except interactive bits. */
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+  input[type='range'] {
+    accent-color: var(--primary);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+}
+
+/* Dense editors keep native scrolling, with quiet theme-aware chrome and a
+   stable gutter so content does not shift when a scrollbar appears. */
+.studio-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 38%, transparent) transparent;
+}
+.studio-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.studio-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.studio-scrollbar::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 38%, transparent);
+  background-clip: padding-box;
+}
+.studio-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 58%, transparent);
+  background-clip: padding-box;
+}
+
+/* Pane headers form the native title bar; interactive controls remain clickable. */
+.workspace-titlebar {
+  height: 52px;
+  -webkit-app-region: drag;
+}
+.workspace-titlebar :is(button, a, input, [role='button']) {
+  -webkit-app-region: no-drag;
+}
+.native-controls-right {
+  /* + the top-right corner (account and notifications, account-corner.tsx). */
+  padding-right: calc(148px + var(--corner-space, 0px));
+}
+.macos-notification-safe-area main .workspace-titlebar,
+.account-corner-safe {
+  padding-right: calc(0.875rem + var(--corner-space, 0px));
+}
+
+/* Keep the Lucide family visually consistent across controls and pane headings. */
+@layer base {
+  .lucide {
+    stroke-width: 1.75;
+  }
+}
+
+/* Semantic chrome roles follow the selected palette, including native drag rows. */
+.workspace-titlebar {
+  background: var(--toolbar-background);
+  color: var(--toolbar-foreground);
+}
+.workspace-titlebar [data-slot='button'] {
+  color: var(--toolbar-control-foreground);
+}
+.workspace-titlebar [data-slot='button']:hover {
+  background: var(--toolbar-control-hover);
+}
+
+/* Every workspace uses the same pane grammar: a quiet rail, compact section
+   headings, and stronger contrast only on the control currently in use. */
+.secondary-sidebar,
+.workspace-pane {
+  color: color-mix(in srgb, var(--foreground) 94%, var(--muted-foreground));
+}
+.secondary-sidebar > *,
+.workspace-pane > * {
+  z-index: 1;
+}
+[data-slot='secondary-sidebar-content'],
+[data-slot='workspace-pane-content'] {
+  line-height: 1.45;
+}
+[data-slot='secondary-sidebar-header'] {
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--foreground) 2.5%, transparent);
+}
+[data-slot='secondary-sidebar-content'] .text-muted-foreground,
+[data-slot='workspace-pane-content'] .text-muted-foreground {
+  color: color-mix(in srgb, var(--muted-foreground) 88%, var(--foreground));
+}
+[data-slot='secondary-sidebar-content'] {
+  scrollbar-gutter: stable;
+  color: color-mix(in srgb, var(--foreground) 96%, var(--muted-foreground));
+}
+[data-slot='secondary-sidebar-content'] > * {
+  min-width: 0;
+}
+[data-slot='secondary-sidebar-content'] :is(button, label, summary) {
+  -webkit-font-smoothing: antialiased;
+}
+[data-slot='secondary-sidebar-content'] :is(p, small) {
+  text-wrap: pretty;
+}
+[data-slot='secondary-sidebar-content'] :is(input, textarea, [role='combobox']) {
+  font-size: max(0.8125rem, 12px);
+}
+[data-slot='secondary-sidebar-content'] :is(h2, legend),
+[data-slot='workspace-pane-content'] :is(h2, legend) {
+  color: var(--foreground);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+[data-slot='secondary-sidebar-content'] :is(h2, summary) > .lucide:first-child,
+[data-slot='workspace-pane-content'] :is(h2, summary) > .lucide:first-child {
+  color: color-mix(in srgb, var(--primary) 76%, var(--muted-foreground));
+}
+[data-slot='secondary-sidebar-content'] details > summary,
+[data-slot='workspace-pane-content'] details > summary {
+  min-height: 2rem;
+  align-items: center;
+  user-select: none;
+}
+[data-slot='secondary-sidebar-content'] details[open] > summary,
+[data-slot='workspace-pane-content'] details[open] > summary {
+  color: var(--foreground);
+}
+[data-slot='secondary-sidebar-content'] > :is(section, form, details),
+[data-slot='workspace-pane-content'] > :is(section, form, details) {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--foreground) 2.5%, transparent);
+}
+[data-slot='secondary-sidebar-content'] > :is(section, form, details):hover,
+[data-slot='workspace-pane-content'] > :is(section, form, details):hover {
+  border-color: color-mix(in srgb, var(--border) 72%, var(--foreground));
+}
+[data-slot='secondary-sidebar-content'] > :is(section, form, details):focus-within,
+[data-slot='workspace-pane-content'] > :is(section, form, details):focus-within {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+}
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button'] {
+  min-height: 2.375rem;
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
+  justify-content: flex-start;
+  padding-inline: 0.625rem;
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted-foreground));
+  font-weight: 500;
+  transition-property: color, background-color, border-color, box-shadow;
+}
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button']:hover {
+  border-color: color-mix(in srgb, var(--border) 62%, transparent);
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button']
+  .lucide {
+  color: color-mix(in srgb, var(--muted-foreground) 82%, var(--primary));
+}
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button']:hover
+  .lucide,
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button'][aria-pressed='true']
+  .lucide {
+  color: var(--primary);
+}
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button'][aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--primary) 18%, var(--border));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 12%, var(--background)),
+    color-mix(in srgb, var(--primary) 6%, var(--background))
+  );
+  box-shadow:
+    inset 2px 0 0 color-mix(in srgb, var(--primary) 86%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--foreground) 3%, transparent);
+  color: var(--foreground);
+}
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button']
+  > .lucide:first-child {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+.secondary-sidebar[data-variant='navigation']
+  [data-slot='secondary-sidebar-content']
+  > div[class*='border-t'] {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  > :is(section, form, details, div.rounded-xl) {
+  /* Sections are outlined, not filled: one flat pane colour throughout. */
+  overflow: clip;
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  background: transparent;
+  box-shadow: none;
+  transition-property: border-color;
+  transition-duration: 150ms;
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  > :is(section, form, details, div.rounded-xl)
+  > :is(h2, legend, summary):first-child {
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  > :is(section, form, details, div.rounded-xl)
+  :is(h2, legend, summary, label) {
+  color: color-mix(in srgb, var(--foreground) 92%, var(--muted-foreground));
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  > :is(section, form, details, div.rounded-xl)
+  :is(h2, summary)
+  > .lucide:first-child {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: color-mix(in srgb, var(--primary) 72%, var(--muted-foreground));
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  > details[open]
+  > summary {
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  > details[open]
+  > summary
+  + * {
+  margin-top: 0.75rem;
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  > :is(section, form, details, div.rounded-xl):hover {
+  border-color: color-mix(in srgb, var(--border) 76%, var(--foreground));
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  :is(h2, legend, summary, label) {
+  text-wrap: pretty;
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  :is(h2, summary) {
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted-foreground));
+  line-height: 1.35;
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  :is(input, textarea, [role='combobox']):focus-visible {
+  background-color: color-mix(in srgb, var(--background) 72%, transparent);
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  :is(input, textarea, [role='combobox']) {
+  background-color: color-mix(in srgb, var(--background) 52%, transparent);
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  :is(input, textarea, [role='combobox']) {
+  border-color: color-mix(in srgb, var(--border) 82%, var(--foreground));
+}
+.secondary-sidebar[data-variant='controls']
+  [data-slot='secondary-sidebar-content']
+  :is(input, textarea)::placeholder {
+  color: color-mix(in srgb, var(--muted-foreground) 82%, transparent);
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  > input:first-child {
+  flex: none;
+  background: color-mix(in srgb, var(--background) 55%, transparent);
+}
+.secondary-sidebar[data-variant='library'] [data-slot='secondary-sidebar-content'] {
+  overflow: hidden;
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  > div[class*='overflow-y-auto'] {
+  scrollbar-gutter: stable;
+  padding-right: 0.125rem;
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  button[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  button[aria-pressed] {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 150ms;
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  > div[class*='overflow-y-auto']
+  > button {
+  color: color-mix(in srgb, var(--foreground) 92%, var(--muted-foreground));
+  border-radius: 0.625rem;
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  > div[class*='overflow-y-auto']
+  > button
+  :is(.text-xs, [class*='text-muted-foreground']) {
+  color: color-mix(in srgb, var(--muted-foreground) 90%, var(--foreground));
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  > div[class*='overflow-y-auto']
+  > button:hover {
+  background: color-mix(in srgb, var(--accent) 64%, transparent);
+}
+.secondary-sidebar[data-variant='library']
+  [data-slot='secondary-sidebar-content']
+  > [data-slot='button']:first-of-type {
+  flex: none;
+  justify-content: flex-start;
+  border-top: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
+  border-radius: 0.5rem;
+  margin-top: 0.25rem;
+}
+@container (max-width: 280px) {
+  [data-slot='secondary-sidebar-content'] {
+    padding-inline: 0.625rem;
+    font-size: 0.8125rem;
+  }
+  [data-slot='secondary-sidebar-header'] {
+    padding-inline: 0.625rem;
+  }
+  [data-slot='secondary-sidebar-header'] > span:nth-child(3) {
+    display: none;
+  }
+  .secondary-sidebar[data-variant='controls']
+    [data-slot='secondary-sidebar-content']
+    > :is(section, form, details, div.rounded-xl) {
+    border-radius: 0.625rem;
+  }
+}
+.secondary-sidebar [role='alert'],
+.workspace-pane [role='alert'] {
+  line-height: 1.5;
+}
+.brand-sidebar {
+  color: var(--sidebar-foreground);
+}
+.brand-sidebar .workspace-titlebar {
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+}
+.brand-sidebar .text-muted-foreground {
+  color: var(--sidebar-muted-foreground);
+}
+.brand-sidebar:has(#sidebar-engine-details:not([data-detail-level='simple']))
+  [data-slot='workspace-navigation'] {
+  max-height: 32vh;
+}
+@media (max-height: 680px) {
+  .brand-sidebar [data-slot='workspace-navigation'] {
+    max-height: 32vh;
+  }
+}
+
+.performance-tier-button {
+  background: transparent;
+  box-shadow: none;
+}
+.performance-tier-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 5.5%, transparent);
+}
+.performance-tier-button[data-selected='true'] {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary) 34%, transparent),
+    0 4px 14px -10px var(--primary);
+}
+
+/* Glass materials are static: no animated blur, pointer tracking, or full-screen
+   filter. Only major panes and floating surfaces create backdrop layers. */
+@supports (backdrop-filter: blur(16px)) {
+  @media (prefers-reduced-transparency: no-preference) {
+    html[data-glass='true'] {
+      --material-fill: 58%;
+      --material-edge: rgb(255 255 255 / 62%);
+      --material-sheen: rgb(255 255 255 / 28%);
+      --material-shadow: rgb(40 25 35 / 9%);
+      --glass-blur: 24px;
+      --glass-opacity: 76%;
+      --glass-saturation: 1.3;
+    }
+    html.dark[data-glass='true'] {
+      --material-fill: 64%;
+      --material-edge: rgb(255 255 255 / 13%);
+      --material-sheen: rgb(255 255 255 / 5%);
+      --material-shadow: rgb(0 0 0 / 22%);
+    }
+    html[data-glass='true'] .app-surface {
+      background:
+        radial-gradient(
+          ellipse at 2% 4%,
+          color-mix(in srgb, var(--primary) 10%, transparent),
+          transparent 48%
+        ),
+        radial-gradient(
+          ellipse at 96% 96%,
+          color-mix(in srgb, var(--primary) 6%, transparent),
+          transparent 52%
+        ),
+        radial-gradient(
+          ellipse at 80% 0%,
+          color-mix(in srgb, var(--glass-light-color, var(--primary)) 3%, transparent),
+          transparent 42%
+        ),
+        var(--background);
+    }
+    html[data-glass='true'] .app-surface .bg-background {
+      background: transparent;
+    }
+    html[data-glass='true'] .app-surface aside {
+      background:
+        linear-gradient(155deg, var(--material-sheen), transparent 44%),
+        color-mix(in srgb, var(--sidebar) var(--material-fill), transparent);
+      backdrop-filter: blur(24px) saturate(130%);
+      border-color: var(--material-edge);
+      box-shadow: inset -1px 0 0 rgb(255 255 255 / 3%);
+    }
+    html[data-glass='true'] .workspace-titlebar {
+      background: color-mix(in srgb, var(--toolbar-background) 42%, transparent);
+      backdrop-filter: blur(20px) saturate(130%);
+      box-shadow: inset 0 1px 0 var(--material-edge);
+    }
+    /* A frosted pane already composites its header; avoid nested backdrop work. */
+    html[data-glass='true'] aside .workspace-titlebar {
+      background: transparent;
+      backdrop-filter: none;
+      box-shadow: none;
+    }
+    html[data-glass='true'] .glass-panel {
+      background:
+        linear-gradient(135deg, var(--material-sheen), transparent 38%, rgb(255 255 255 / 2%) 100%),
+        color-mix(in srgb, var(--card) var(--material-fill), transparent);
+      backdrop-filter: blur(24px) saturate(130%);
+      border-color: var(--material-edge);
+      box-shadow:
+        inset 0 1px 0 var(--material-edge),
+        inset 0 -1px 0 rgb(0 0 0 / 5%),
+        0 8px 28px -12px var(--material-shadow);
+    }
+    html[data-glass='true'] .composer-surface {
+      border-radius: 1.125rem;
+      padding: 0.75rem;
+      box-shadow:
+        inset 0 1px 0 var(--material-edge),
+        0 12px 32px -12px var(--material-shadow);
+    }
+    html[data-glass='true'] .surface-glass {
+      border-color: var(--material-edge);
+      box-shadow:
+        inset 0 1px 0 var(--material-edge),
+        0 12px 32px -8px var(--material-shadow);
+    }
+  }
+}
+
+/* Classic glass uses violet reflections instead of the status-warning gold. */
+html[data-theme-id='heritage'] {
+  --glass-light-color: #ad82d9;
+}
+
+/* Keep controls opaque: Glass mode clears the bg-background surface utility. */
+[data-slot='switch'].app-switch {
+  background: color-mix(in srgb, var(--foreground) 32%, var(--background));
+  border-color: color-mix(in srgb, var(--foreground) 55%, var(--background));
+  transition-property: background-color, border-color, box-shadow;
+}
+[data-slot='switch'].app-switch[data-checked] {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+[data-slot='switch-thumb'].app-switch-thumb {
+  background: var(--foreground);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+}
+[data-slot='switch'][data-checked] .app-switch-thumb {
+  background: var(--primary-foreground);
+}
+[data-slot='switch'].app-switch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-slot='switch'].app-switch {
+    transition: none;
+  }
+}
+
+/* macOS draws its traffic lights over the web content. The tabs layout reserves
+   64px from the window edge for them; the breadcrumb layout reaches the same
+   total by adding whatever the header's own start padding (12px) leaves over. */
+.header-area__lead--mac-inset {
+  margin-inline-start: calc(64px - var(--header-area-pad-x, 12px));
+}

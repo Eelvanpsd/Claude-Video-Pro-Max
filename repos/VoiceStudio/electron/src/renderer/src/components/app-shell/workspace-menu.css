@@ -1,0 +1,120 @@
+.workspace-nav-icon[data-tone='voice'] {
+  --workspace-icon-accent: var(--color-fuchsia-500);
+}
+.workspace-nav-icon[data-tone='clone'] {
+  --workspace-icon-accent: var(--color-violet-500);
+}
+.workspace-nav-icon[data-tone='design'] {
+  --workspace-icon-accent: var(--color-pink-500);
+}
+.workspace-nav-icon[data-tone='personas'] {
+  --workspace-icon-accent: var(--color-cyan-500);
+}
+.workspace-nav-icon[data-tone='gallery'] {
+  --workspace-icon-accent: var(--color-emerald-500);
+}
+.workspace-nav-icon[data-tone='stories-group'] {
+  --workspace-icon-accent: var(--color-blue-500);
+}
+.workspace-nav-icon[data-tone='stories'] {
+  --workspace-icon-accent: var(--color-sky-500);
+}
+.workspace-nav-icon[data-tone='audiobook'] {
+  --workspace-icon-accent: var(--color-amber-500);
+}
+.workspace-nav-icon[data-tone='dubbing-group'] {
+  --workspace-icon-accent: var(--color-rose-500);
+}
+.workspace-nav-icon[data-tone='dub'] {
+  --workspace-icon-accent: var(--color-purple-500);
+}
+.workspace-nav-icon[data-tone='batch'] {
+  --workspace-icon-accent: var(--color-orange-500);
+}
+.workspace-nav-icon[data-tone='transcriptions'] {
+  --workspace-icon-accent: var(--color-teal-500);
+}
+.workspace-nav-icon[data-tone='calls'] {
+  --workspace-icon-accent: var(--color-indigo-500);
+}
+.workspace-nav-icon[data-tone='projects'] {
+  --workspace-icon-accent: var(--color-lime-500);
+}
+.workspace-nav-icon[data-tone='tools'] {
+  --workspace-icon-accent: var(--color-yellow-500);
+}
+.workspace-nav-icon[data-tone='integrations'] {
+  --workspace-icon-accent: var(--color-green-500);
+}
+.workspace-nav-icon[data-tone='settings'] {
+  --workspace-icon-accent: var(--color-red-500);
+}
+
+.workspace-nav-item:is(:hover, :focus-visible, [aria-current='page'], [data-active='true'])
+  .workspace-nav-icon {
+  color: color-mix(in oklab, var(--workspace-icon-accent) 78%, var(--foreground));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--workspace-icon-accent) 32%, transparent));
+}
+
+.workspace-nav-item:is(:hover, :focus-visible) .workspace-nav-icon[data-motion='pulse'] {
+  animation: workspace-icon-pulse 400ms ease-out both;
+}
+.workspace-nav-item:is(:hover, :focus-visible) .workspace-nav-icon[data-motion='tilt'] {
+  animation: workspace-icon-tilt 440ms ease-out both;
+}
+.workspace-nav-item:is(:hover, :focus-visible) .workspace-nav-icon[data-motion='nudge'] {
+  animation: workspace-icon-nudge 400ms ease-out both;
+}
+.workspace-nav-item:is(:hover, :focus-visible) .workspace-nav-icon[data-motion='lift'] {
+  animation: workspace-icon-lift 400ms ease-out both;
+}
+.workspace-nav-item:is(:hover, :focus-visible) .workspace-nav-icon[data-motion='wave'] {
+  animation: workspace-icon-wave 440ms ease-out both;
+}
+.workspace-nav-item:is(:hover, :focus-visible) .workspace-nav-icon[data-motion='turn'] {
+  animation: workspace-icon-turn 450ms ease-out both;
+}
+
+@keyframes workspace-icon-pulse {
+  45% {
+    transform: scale(1.16);
+  }
+}
+@keyframes workspace-icon-tilt {
+  40% {
+    transform: rotate(-13deg);
+  }
+  72% {
+    transform: rotate(7deg);
+  }
+}
+@keyframes workspace-icon-nudge {
+  45% {
+    transform: translateX(3px);
+  }
+}
+@keyframes workspace-icon-lift {
+  45% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes workspace-icon-wave {
+  35% {
+    transform: scaleY(0.78);
+  }
+  70% {
+    transform: scaleY(1.13);
+  }
+}
+@keyframes workspace-icon-turn {
+  50% {
+    transform: rotate(22deg) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-nav-item .workspace-nav-icon {
+    animation: none !important;
+    transition-duration: 0ms;
+  }
+}

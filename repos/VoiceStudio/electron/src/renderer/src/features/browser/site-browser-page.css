@@ -1,0 +1,101 @@
+.site-browser-page {
+  position: fixed;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 20px 70px rgb(0 0 0 / 35%);
+  background: var(--background);
+  color: var(--foreground);
+}
+.site-browser-page::backdrop {
+  background: rgb(0 0 0 / 16%);
+}
+.site-browser-viewport {
+  flex: 1;
+  min-height: 0;
+  margin: 0 1px 12px;
+}
+.site-browser-toolbar {
+  position: relative;
+  flex-shrink: 0;
+  max-height: 65%;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.site-browser-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.site-browser-title > span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.site-browser-title > button {
+  flex-shrink: 0;
+}
+.site-browser-navigation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+.site-browser-navigation form {
+  flex: 1;
+  min-width: 0;
+  margin-left: 6px;
+}
+.site-browser-navigation input {
+  width: 100%;
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  outline: none;
+}
+.site-browser-navigation input:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 20%, transparent);
+}
+.site-browser-external {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 130px;
+  overflow-y: auto;
+  padding: 12px 0 2px;
+}
+.site-browser-error {
+  font-size: 12px;
+  margin-top: 9px;
+  color: var(--destructive);
+}
+.site-browser-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+}
+.site-browser-progress[data-loading='true'] {
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+}
