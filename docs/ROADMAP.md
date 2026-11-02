@@ -39,3 +39,5 @@ Status: ✅ shipped in [`kit/`](../kit) · 🔜 next · 💡 later.
 | 32 | Qwen3-ForcedAligner (script → audio) as tie-breaker for disputed word times | No misheard-word drift | S | mlx-audio `qwen3_asr` | 💡 |
 | 33 | Silero VAD pause audit: measured pauses vs tiered-pause plan; no unplanned silence > 1.5 s | Pacing as designed | S | mlx-audio `vad/silero_vad` | 💡 |
 | 34 | DeepFilterNet / SAM-Audio cleanup of real CC0 SFX recordings | Cleaner real SFX, still real | M | mlx-audio `sts` | 💡 |
+| 35 | Perth watermark probe on every final mix (prove no watermarked third-party TTS slipped in) | Clean provenance | S | chatterbox `perth` | 💡 |
+| 36 | Owner-gated A/B: one script via mlx-audio Chatterbox (consented reference, exaggeration 0.5/0.7, cfg 0.3–0.5) vs Kokoro | Evidence before any narrator change | M | chatterbox, mlx-audio | 💡 |

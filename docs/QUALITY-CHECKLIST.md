@@ -1,4 +1,4 @@
-# Quality checklist — numbers collected from all thirteen repos
+# Quality checklist — numbers collected from all fourteen repos
 
 Use as a pre-delivery gate. Source in brackets.
 
@@ -50,6 +50,7 @@ Use as a pre-delivery gate. Source in brackets.
 - [ ] Every voice model used on a monetised video has a commercial-use licence (no CC-BY-NC weights) *(VoiceStudio model inventory)*
 - [ ] Caption word times agree between Kokoro `start_ts` and the whisper alignment within 1 frame; disputes resolved by forced alignment *(mlx-audio)*
 - [ ] Measured pauses (Silero VAD) match the tiered-pause plan; no unplanned silence > 1.5 s *(mlx-audio)*
+- [ ] No third-party AI watermark in the final mix (Perth `get_watermark()` = 0.0); any cloned voice has written consent *(chatterbox)*
 
 ## Publishing
 - [ ] Caption line 1 = the hook (it is what shows before "more"); then title, a comment prompt, 3–5 tags; no money/earnings promises *(reels-sistemi)*

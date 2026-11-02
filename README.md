@@ -1,6 +1,6 @@
 # Claude Video Pro Max
 
-**A curated, annotated collection of thirteen open-source repos for raising AI-made video quality (picture and sound) — plus a small kit of ready-to-use Remotion pieces distilled from them.**
+**A curated, annotated collection of fourteen open-source repos for raising AI-made video quality (picture and sound) — plus a small kit of ready-to-use Remotion pieces distilled from them.**
 
 Built while upgrading a production pipeline of vertical history shorts (Remotion 4 + hand-written SVG art + local Kokoro narration, no paid APIs, no AI images). Every repo here was cloned, read and judged for that kind of pipeline: what it is, how to run it, which techniques actually move quality, what is free vs paid, and what its license lets you do.
 
@@ -10,7 +10,7 @@ git clone https://github.com/Eelvanpsd/Claude-Video-Pro-Max.git   # everything i
 
 ---
 
-## The thirteen repos
+## The fourteen repos
 
 | # | Repo | What it is | License | Free/local | Verdict | Deep dive |
 |---|---|---|---|---|---|---|
@@ -27,17 +27,18 @@ git clone https://github.com/Eelvanpsd/Claude-Video-Pro-Max.git   # everything i
 | 11 | [Clipwing/skills › real-sfx](https://github.com/Clipwing/skills/tree/main/skills/real-sfx) | Skill that places real library SFX on exact frames: audible-start placement, voice-safe mix, tonal fit, mono check, critique | MIT scripts (uisfx sounds CC0) | ✅ | ✅ Adopt ideas (library mode only) | [docs](docs/repos/11-real-sfx.md) |
 | 12 | [debpalash/VoiceStudio](https://github.com/debpalash/VoiceStudio) | Local AI voice studio: ~20 TTS + ~10 ASR engines, cloning, voice design, dubbing, `[pause]` markers, room-tone pause fill, WhisperX word alignment, signal checks, MCP | AGPL-3.0 (default OmniVoice weights CC-BY-NC) | ✅ | 💡 Ideas + optional tool; ❌ not for monetised narration | [docs](docs/repos/12-VoiceStudio.md) |
 | 13 | [Blaizzy/mlx-audio](https://github.com/Blaizzy/mlx-audio) | Apple-Silicon audio library: ~30 TTS (incl. **Kokoro, our narrator runtime**), ~30 STT, forced aligner, Silero VAD, speech enhancement, OpenAI-compatible server | MIT (models: own licences) | ✅ | ✅ Adopt (already in use; upgrade + word timings) | [docs](docs/repos/13-mlx-audio.md) |
+| 14 | [resemble-ai/chatterbox](https://github.com/resemble-ai/chatterbox) | Open TTS family: Turbo 350M, Nano 110M, Multilingual V3 (23 langs incl. Turkish); zero-shot cloning, `exaggeration`/`cfg_weight` delivery controls, Perth watermark on every file | MIT (code) | ✅ | 💡 Benchmark only; ❌ not a narrator swap | [docs](docs/repos/14-chatterbox.md) |
 
 Each repo is included **in full** under [`repos/`](repos) — a copy of the commit that was reviewed, with its own license intact. Upstream URLs and commits: [`repos/SOURCES.md`](repos/SOURCES.md).
 
 ## What's in here
 
 ```
-repos/                    13 vendored repos (original code, original licenses) + SOURCES.md
-docs/repos/01…13-*.md     per-repo deep dive: architecture, run commands, techniques with file paths, free vs paid, what to adopt
+repos/                    14 vendored repos (original code, original licenses) + SOURCES.md
+docs/repos/01…14-*.md     per-repo deep dive: architecture, run commands, techniques with file paths, free vs paid, what to adopt
 docs/COMPARISON.md        side-by-side matrix: license, engine, transitions, motion, captions, audio, QA
 docs/ROADMAP.md           ideas ranked by quality gain per hour, with status
-docs/QUALITY-CHECKLIST.md pre-delivery gate: every concrete number from all thirteen repos in one list
+docs/QUALITY-CHECKLIST.md pre-delivery gate: every concrete number from all fourteen repos in one list
 kit/                      MIT, standalone Remotion pieces + QA tool built from the ideas
 ```
 
@@ -90,6 +91,7 @@ node kit/tools/contact-sheet.mjs out/video.mp4 --strip 12:12.8  # every frame of
 - **onetake** is non-commercial and **OpenMontage** is AGPLv3 — the kit re-implements *ideas* from them, it does not copy their code.
 - **VoiceStudio** app code is AGPL-3.0 (using the app and publishing its output is fine). Its default OmniVoice weights are **CC-BY-NC** and it adds an invisible AudioSeal watermark by default, so don't use its default engine on monetised videos. Ideas are re-implemented, not copied.
 - **mlx-audio** code is MIT; each model keeps its own licence (Kokoro-82M: Apache-2.0). Check the card of any other model before publishing its output.
+- **chatterbox** code is MIT; every generated file carries Resemble's Perth watermark, and it clones from a reference clip (consent required).
 - **hypit**: own-organisation use is fine; no multi-tenant SaaS or commercial redistribution; keep its name/logo in its CLI and reports.
 - Everything else in this repo (`docs/`, `kit/`, this README) is **MIT** — see [`LICENSE`](LICENSE).
 
@@ -97,4 +99,4 @@ node kit/tools/contact-sheet.mjs out/video.mp4 --strip 12:12.8  # every frame of
 
 ### Türkçe özet
 
-Video kalitesini (görüntü ve ses) yükseltmek için incelenen 13 açık kaynak repo: hepsinin tam içeriği `repos/` altında (kaynak ve commit listesi `repos/SOURCES.md`). Her biri için `docs/repos/` içinde detaylı analiz var (ne işe yarar, nasıl çalıştırılır, hangi teknikler kaliteyi artırır, ücretsiz mi ücretli mi, lisansı neye izin verir). `kit/` klasöründe bu repolardan çıkarılan, doğrudan kullanılabilir Remotion parçaları (çizgi titremesi, yırtık kâğıt geçişi, tarih "slam" efekti) ve ffmpeg kontrol aracı var. 9–11 ses tarafı: Openverse (CC0 ses efekti bulma), earshot (ajan için "kulak": ses tanıma, gerçek/sentetik kontrolü, senkron ölçümü) ve real-sfx (gerçek SFX'i doğru kareye, doğru seviyede yerleştirme). 12: VoiceStudio — yerel ses stüdyosu (çok sayıda TTS/ASR motoru, `[pause]` işaretleri, duraklamaları oda sesiyle doldurma, WhisperX ile ±10–30 ms kelime zamanlaması). Varsayılan OmniVoice ağırlıkları ticari olmayan lisanslı (CC-BY-NC), bu yüzden para kazanılan videolarda anlatım için kullanılmaz; fikirleri alınır. 13: mlx-audio — anlatıcı sesimiz Kokoro zaten bu kütüphaneyle çalışıyor (`.venv-tts`); güncelleme, Kokoro'nun kendi kelime zaman damgaları, script'e zorunlu hizalama (Qwen3-ForcedAligner) ve Silero VAD ile duraklama ölçümü öneriliyor. `docs/ROADMAP.md` sıradaki iyileştirmeleri, `docs/QUALITY-CHECKLIST.md` yayın öncesi kontrol listesini içeriyor.
+Video kalitesini (görüntü ve ses) yükseltmek için incelenen 14 açık kaynak repo: hepsinin tam içeriği `repos/` altında (kaynak ve commit listesi `repos/SOURCES.md`). Her biri için `docs/repos/` içinde detaylı analiz var (ne işe yarar, nasıl çalıştırılır, hangi teknikler kaliteyi artırır, ücretsiz mi ücretli mi, lisansı neye izin verir). `kit/` klasöründe bu repolardan çıkarılan, doğrudan kullanılabilir Remotion parçaları (çizgi titremesi, yırtık kâğıt geçişi, tarih "slam" efekti) ve ffmpeg kontrol aracı var. 9–11 ses tarafı: Openverse (CC0 ses efekti bulma), earshot (ajan için "kulak": ses tanıma, gerçek/sentetik kontrolü, senkron ölçümü) ve real-sfx (gerçek SFX'i doğru kareye, doğru seviyede yerleştirme). 12: VoiceStudio — yerel ses stüdyosu (çok sayıda TTS/ASR motoru, `[pause]` işaretleri, duraklamaları oda sesiyle doldurma, WhisperX ile ±10–30 ms kelime zamanlaması). Varsayılan OmniVoice ağırlıkları ticari olmayan lisanslı (CC-BY-NC), bu yüzden para kazanılan videolarda anlatım için kullanılmaz; fikirleri alınır. 13: mlx-audio — anlatıcı sesimiz Kokoro zaten bu kütüphaneyle çalışıyor (`.venv-tts`); güncelleme, Kokoro'nun kendi kelime zaman damgaları, script'e zorunlu hizalama (Qwen3-ForcedAligner) ve Silero VAD ile duraklama ölçümü öneriliyor. 14: Chatterbox — Resemble AI'ın açık TTS modelleri (Türkçe dahil 23 dil, duygu/tempo kontrolü); her çıktıya filigran koyuyor ve hazır sesi yok (referans klipten klonluyor), bu yüzden anlatıcı değişikliği değil, sadece karşılaştırma adayı. `docs/ROADMAP.md` sıradaki iyileştirmeleri, `docs/QUALITY-CHECKLIST.md` yayın öncesi kontrol listesini içeriyor.
