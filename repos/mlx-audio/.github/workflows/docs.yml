@@ -1,0 +1,27 @@
+name: Docs
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  docs-build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install package and docs dependencies
+        run: pip install -e ".[all,docs]"
+
+      - name: Build docs
+        run: mkdocs build --strict

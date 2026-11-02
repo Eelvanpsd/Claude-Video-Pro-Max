@@ -16,5 +16,6 @@ Each folder in `repos/` is a full copy of the upstream repo at the commit that w
 | `earshot` | https://github.com/Leonxlnx/earshot.git | `591fa3e028032e6dce56620a20e932e35667e8d8` |
 | `real-sfx` | https://github.com/Clipwing/skills.git (folder `skills/real-sfx` only) | `edbefcbc3474869e6cc1e8a7ca583b0efd0dab7e` |
 | `VoiceStudio` | https://github.com/debpalash/VoiceStudio.git | `1a29929cb87f8ff1470271e6498f0694d395f54d` |
+| `mlx-audio` | https://github.com/Blaizzy/mlx-audio.git | `65b6a39b389c1564549982844b0473ec8a6a6a6b` |
 
 Notes: `VoiceStudio` excludes its 6 demo `.mp4` files (this repo ignores `*.mp4`) and the uninitialised `omnivoice-gallery` submodule.

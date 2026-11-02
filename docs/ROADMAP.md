@@ -34,3 +34,8 @@ Status: ✅ shipped in [`kit/`](../kit) · 🔜 next · 💡 later.
 | 27 | Narration signal check: long silence, volume jumps, clipping, empty/NaN samples, with timestamps | Catches broken TTS takes before render | S | VoiceStudio `audio_quality.py` | 💡 |
 | 28 | WhisperX forced alignment (±10–30 ms) as a second pass when caption words drift | Tighter word-synced captions | M | VoiceStudio `whisperx` engine | 💡 |
 | 29 | Pronunciation lexicon for historical names before TTS | Fewer mispronounced names | S | VoiceStudio `pronunciation.py` | 💡 |
+| 30 | **Kokoro word timestamps** (`start_ts`/`end_ts` from predicted durations) as the primary word clock; mlx-whisper as cross-check, flag > 1 frame disagreement | Exact word sync, one less model pass | S | mlx-audio `kokoro/pipeline.py` | 🔜 |
+| 31 | Upgrade `.venv-tts` mlx-audio 0.5.8 → 0.6.x with a waveform/duration diff on one video before re-voicing | Fixes + new tools, no surprise voice change | S | mlx-audio | 🔜 |
+| 32 | Qwen3-ForcedAligner (script → audio) as tie-breaker for disputed word times | No misheard-word drift | S | mlx-audio `qwen3_asr` | 💡 |
+| 33 | Silero VAD pause audit: measured pauses vs tiered-pause plan; no unplanned silence > 1.5 s | Pacing as designed | S | mlx-audio `vad/silero_vad` | 💡 |
+| 34 | DeepFilterNet / SAM-Audio cleanup of real CC0 SFX recordings | Cleaner real SFX, still real | M | mlx-audio `sts` | 💡 |

@@ -1,0 +1,148 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlx-audio"
+dynamic = ["version"]
+description = "MLX-Audio is a package for inference of text-to-speech (TTS) and speech-to-speech (STS) models locally on your Mac using MLX"
+readme = "README.md"
+license = "MIT"
+authors = [
+    {name = "Prince Canuma", email = "prince.gdt@gmail.com"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+
+# Core dependencies
+dependencies = [
+    "huggingface_hub>=1.0",
+    "jinja2>=3.1.6",
+    "miniaudio>=1.71",
+    "mlx==0.32.4",
+    "numpy>=1.26.4",
+    "scipy>=1.10.0",
+    "sentencepiece>=0.2.0",
+    "sounddevice>=0.5.3",
+    "tqdm>=4.67.1",
+    "transformers[chat-template]>=5.14.0",
+]
+
+[project.optional-dependencies]
+# STT dependencies
+stt = [
+    "zstandard>=0.23.0",
+]
+
+# TTS dependencies
+tts = [
+    "mistral-common[audio]",
+]
+
+# Server dependencies
+server = [
+    "fastapi>=0.95.0",
+    "uvicorn[standard]>=0.22.0",
+    "python-multipart>=0.0.22",
+    "webrtcvad>=2.0.10",
+    "setuptools<81", # pinned because >=81 drops pkg_resources which breaks webrtcvad
+]
+
+# STS (Speech-to-Speech) dependencies
+sts = [
+    # The speech-to-speech pipeline's default responder loads an arbitrary chat
+    # model, which is mlx-lm's job; every other use is vendored in mlx_audio/lm.
+    "mlx-lm>=0.31.1",
+
+    "webrtcvad>=2.0.10",
+    "setuptools<81", # pinned because >=81 drops pkg_resources which breaks webrtcvad
+]
+
+# Full installation (all features)
+all = [
+    "mistral-common[audio]",
+    "zstandard>=0.23.0",
+
+    "mlx-lm>=0.31.1",
+
+    "fastapi>=0.95.0",
+    "python-multipart>=0.0.22",
+    "uvicorn[standard]>=0.22.0",
+
+    "webrtcvad>=2.0.10",
+    "setuptools<81", # pinned because >=81 drops pkg_resources which breaks webrtcvad
+]
+
+# Optional in-process LLM responder for the speech-to-speech pipeline. Every
+# other mlx-lm use is vendored under mlx_audio/lm.
+llm = [
+    "mlx-lm>=0.31.1",
+]
+
+# Differential tests against the pinned mlx-lm reference.
+parity = [
+    "mlx-lm==0.32.2; python_version >= '3.11'",
+]
+
+# Development dependencies
+dev = [
+    "httpx2>=2.0.0,<3",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=1.0.0",
+    "black>=24.2.0",
+    "isort>=5.13.2",
+    "pre-commit>=3.7.0",
+]
+
+# Documentation dependencies
+docs = [
+    "mkdocs-material>=9.6",
+    "mkdocstrings[python]>=0.29",
+    # mkdocstrings supports pymdown-extensions 12.2 from 1.0.7, which needs Python 3.11
+    "pymdown-extensions<12.2; python_version < '3.11'",
+]
+
+[project.scripts]
+"mlx_audio.convert" = "mlx_audio.convert:main"
+"mlx_audio.stt.generate" = "mlx_audio.stt.generate:main"
+"mlx_audio.tts.generate" = "mlx_audio.tts.generate:main"
+"mlx_audio.music.generate" = "mlx_audio.music.generate:main"
+"mlx_audio.server" = "mlx_audio.server:main"
+"mlx_audio.sts.generate" = "mlx_audio.sts.generate:main"
+
+[project.urls]
+Homepage = "https://github.com/Blaizzy/mlx-audio"
+Repository = "https://github.com/Blaizzy/mlx-audio"
+
+[tool.poetry]
+version = "0.0.0"
+
+[tool.setuptools.dynamic]
+version = {attr = "mlx_audio.version.__version__"}
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mlx_audio", "mlx_audio.*"]
+
+[tool.setuptools.package-data]
+mlx_audio = [
+    "tts/*.html",
+    "tts/*.js",
+    "tts/*.css",
+    "tts/**/*.json",
+    "tts/static/**/*",
+]
+"mlx_audio.sts.models.nemotron_reuse" = ["README.md"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"

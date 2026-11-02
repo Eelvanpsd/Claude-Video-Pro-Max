@@ -1,4 +1,4 @@
-# Quality checklist — numbers collected from all twelve repos
+# Quality checklist — numbers collected from all thirteen repos
 
 Use as a pre-delivery gate. Source in brackets.
 
@@ -48,6 +48,8 @@ Use as a pre-delivery gate. Source in brackets.
 - [ ] Narration take scanned: no unintended long silence, sudden volume jumps, clipping, empty or NaN samples *(VoiceStudio Check audio)*
 - [ ] Pauses carry room tone, not digital zero; limiter only above −1 dBFS, leveler works per phrase, not per syllable *(VoiceStudio)*
 - [ ] Every voice model used on a monetised video has a commercial-use licence (no CC-BY-NC weights) *(VoiceStudio model inventory)*
+- [ ] Caption word times agree between Kokoro `start_ts` and the whisper alignment within 1 frame; disputes resolved by forced alignment *(mlx-audio)*
+- [ ] Measured pauses (Silero VAD) match the tiered-pause plan; no unplanned silence > 1.5 s *(mlx-audio)*
 
 ## Publishing
 - [ ] Caption line 1 = the hook (it is what shows before "more"); then title, a comment prompt, 3–5 tags; no money/earnings promises *(reels-sistemi)*

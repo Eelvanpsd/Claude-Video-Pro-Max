@@ -1,0 +1,66 @@
+# Contributions
+
+This file acknowledges the original authors and contributors of models ported to mlx-audio.
+
+## Fish Audio Drama 3 (Text-to-Speech)
+
+- **Original**: [fishaudio/drama-3](https://huggingface.co/fishaudio/drama-3)
+- **Copyright**: Fish Audio
+- **License**: [Fish Audio Community License](https://huggingface.co/fishaudio/drama-3/blob/main/LICENSE)
+- **MLX Port**: Daniel Sticker ([@stickerdaniel](https://github.com/stickerdaniel))
+
+## MiniMax Music 3 (Song Generation)
+
+- **Original**: [MiniMaxAI/MiniMax-Music3](https://huggingface.co/MiniMaxAI/MiniMax-Music3)
+- **Copyright**: MiniMax
+- **License**: [MiniMax-Music3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-Music3/blob/main/LICENSE)
+- **MLX Port**: Adapted from [mikolaj92/minimax-music3-mlx](https://github.com/mikolaj92/minimax-music3-mlx) (Apache-2.0)
+
+## MossFormer2 SE (Speech Enhancement)
+
+- **Original**: [ClearerVoice-Studio](https://github.com/modelscope/ClearerVoice-Studio)
+- **Copyright**: Speech Lab, Alibaba Group
+- **License**: Apache License 2.0
+- **MLX Port**: Dmitry Starkov ([@starkdmi](https://github.com/starkdmi))
+
+## DeepFilterNet (Speech Enhancement)
+
+- **Original**: [Rikorose/DeepFilterNet](https://github.com/Rikorose/DeepFilterNet)
+- **Copyright**: Hendrik Schröter and contributors
+- **License**: MIT / Apache-2.0
+- **MLX Port**: Kyle Howells ([@kylehowells](https://github.com/kylehowells))
+
+## NVIDIA NemotronLabs RE-USE (Speech Enhancement)
+
+- **Original**: [nvidia/NVIDIA-NemotronLabs-RE-USE](https://huggingface.co/nvidia/NVIDIA-NemotronLabs-RE-USE)
+- **Copyright**: NVIDIA Corporation & Affiliates
+- **License**: [OpenMDW-1.1](https://huggingface.co/nvidia/NVIDIA-NemotronLabs-RE-USE/blob/main/LICENSE)
+- **MLX Port**: Native convolutional encoder/decoders and bidirectional Mamba-1 with a Metal selective scan.
+
+## Nemotron 3.5 Transcribe (Speech-to-Text)
+
+- **Original**: NVIDIA Nemotron-3.5-Transcribe-30B-A4B-EA; [NeMo Speech](https://github.com/NVIDIA-NeMo/Speech)
+- **Copyright**: NVIDIA Corporation
+- **License**: Apache-2.0 (adapted NeMo code); [NVIDIA Software and Model Evaluation License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-and-model-evaluation-license/) (early-access weights)
+- **Backbone**: Nemotron-H implementation vendored from Apple's MLX-LM (MIT)
+
+## Nemotron 3.5 ASR Streaming (Speech-to-Text)
+
+- **Original**: [nvidia/nemotron-3.5-asr-streaming-0.6b](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b)
+- **Copyright**: NVIDIA Corporation
+- **License**: [NVIDIA Open Model License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/)
+- **MLX Port**: [@ARahim3](https://github.com/ARahim3)
+
+## rumik-oss 1 (Text-to-Speech)
+
+- **Original**: [rumik-ai/rumik-oss-1](https://huggingface.co/rumik-ai/rumik-oss-1)
+- **Copyright**: rumik.ai
+- **License**: [CC-BY-NC 4.0 with Cohere Labs acceptable-use addendum](https://cohere.com/cohere-labs-cc-by-nc-license) (weights); Mimi codec CC-BY-4.0
+- **MLX Port**: Suryansh Shakya ([@nullHawk](https://github.com/nullHawk))
+
+## Phonon-2 (Speech-to-Text)
+
+- **Original**: [FermionResearch/Phonon-2](https://huggingface.co/FermionResearch/Phonon-2)
+- **Copyright**: Fermion Research; NVIDIA
+- **License**: Apache-2.0 (adapted code); CC-BY-4.0 (weights)
+- **MLX Port**: [@atesahmet0](https://github.com/atesahmet0)

@@ -1,0 +1,1147 @@
+# Copyright (c) 2025, Prince Canuma and contributors (https://github.com/Blaizzy/mlx-audio)
+
+import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import mlx.core as mx
+import numpy as np
+
+from mlx_audio.tts.models.qwen3_tts.qwen3_tts import Model, mel_spectrogram
+from mlx_audio.tts.models.qwen3_tts.speaker_encoder import (
+    TimeDelayNetBlock,
+    reflect_pad_1d,
+)
+from mlx_audio.tts.models.qwen3_tts.speech_tokenizer import DecoderBlockUpsample
+
+
+def _top_p_keep_mask(scores, top_p):
+    probs = mx.softmax(scores, axis=-1)
+    sorted_indices = mx.argsort(scores, axis=-1)
+    sorted_probs = mx.take_along_axis(probs, sorted_indices, axis=-1)
+    sorted_remove = mx.cumsum(sorted_probs, axis=-1) <= (1 - top_p)
+    remove = mx.put_along_axis(
+        mx.zeros_like(sorted_remove), sorted_indices, sorted_remove, axis=-1
+    )
+    return ~remove
+
+
+def _min_p_keep_mask(scores, min_p):
+    probs = mx.softmax(scores, axis=-1)
+    return probs >= mx.max(probs, axis=-1, keepdims=True) * min_p
+
+
+class TestReflectPad1d(unittest.TestCase):
+    """Tests for reflect_pad_1d helper function."""
+
+    def test_no_padding(self):
+        """Test that pad=0 returns the input unchanged."""
+        x = mx.ones((1, 5, 3))
+        result = reflect_pad_1d(x, pad=0)
+        np.testing.assert_array_equal(np.array(result), np.array(x))
+
+    def test_pad_1(self):
+        """Test reflect padding with pad=1."""
+        # Input: [1, 5, 1] with values [0, 1, 2, 3, 4]
+        x = mx.array([[[0.0], [1.0], [2.0], [3.0], [4.0]]])
+        result = reflect_pad_1d(x, pad=1)
+
+        # Reflect pad=1: left mirrors x[1], right mirrors x[-2]
+        # Expected: [1, 0, 1, 2, 3, 4, 3]
+        expected = np.array([[[1.0], [0.0], [1.0], [2.0], [3.0], [4.0], [3.0]]])
+        np.testing.assert_array_equal(np.array(result), expected)
+
+    def test_pad_2(self):
+        """Test reflect padding with pad=2."""
+        x = mx.array([[[0.0], [1.0], [2.0], [3.0], [4.0]]])
+        result = reflect_pad_1d(x, pad=2)
+
+        # Reflect pad=2: left mirrors x[1:3] reversed, right mirrors x[-3:-1] reversed
+        # Left: x[1:3] = [1,2] reversed = [2,1]
+        # Right: x[-3:-1] = [2,3] reversed = [3,2]
+        # Expected: [2, 1, 0, 1, 2, 3, 4, 3, 2]
+        expected = np.array(
+            [[[2.0], [1.0], [0.0], [1.0], [2.0], [3.0], [4.0], [3.0], [2.0]]]
+        )
+        np.testing.assert_array_equal(np.array(result), expected)
+
+    def test_output_shape(self):
+        """Test that output shape is [batch, time + 2*pad, channels]."""
+        batch, time, channels = 2, 10, 4
+        pad = 3
+        x = mx.random.normal((batch, time, channels))
+        result = reflect_pad_1d(x, pad)
+        self.assertEqual(result.shape, (batch, time + 2 * pad, channels))
+
+    def test_multichannel(self):
+        """Test that reflect padding works correctly across multiple channels."""
+        # Each channel should be padded independently with the same pattern
+        x = mx.array(
+            [
+                [
+                    [1.0, 10.0],
+                    [2.0, 20.0],
+                    [3.0, 30.0],
+                    [4.0, 40.0],
+                    [5.0, 50.0],
+                ]
+            ]
+        )
+        result = reflect_pad_1d(x, pad=1)
+        result_np = np.array(result)
+
+        # Channel 0: [2, 1, 2, 3, 4, 5, 4]
+        expected_ch0 = [2.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0]
+        # Channel 1: [20, 10, 20, 30, 40, 50, 40]
+        expected_ch1 = [20.0, 10.0, 20.0, 30.0, 40.0, 50.0, 40.0]
+
+        np.testing.assert_array_equal(result_np[0, :, 0], expected_ch0)
+        np.testing.assert_array_equal(result_np[0, :, 1], expected_ch1)
+
+
+class TestTimeDelayNetBlockReflectPadding(unittest.TestCase):
+    """Tests for TimeDelayNetBlock reflect padding behavior."""
+
+    def test_output_shape_preserves_time(self):
+        """Test that TimeDelayNetBlock with reflect padding preserves time dimension."""
+        in_channels, out_channels = 16, 32
+        kernel_size, dilation = 3, 1
+        block = TimeDelayNetBlock(in_channels, out_channels, kernel_size, dilation)
+
+        batch, time = 1, 20
+        x = mx.random.normal((batch, in_channels, time))  # NCL format
+        out = block(x)
+
+        # With reflect padding, output time should equal input time
+        self.assertEqual(out.shape, (batch, out_channels, time))
+
+    def test_output_shape_with_dilation(self):
+        """Test that dilated convolution with reflect padding preserves time."""
+        in_channels, out_channels = 16, 32
+        kernel_size, dilation = 3, 2
+        block = TimeDelayNetBlock(in_channels, out_channels, kernel_size, dilation)
+
+        batch, time = 1, 20
+        x = mx.random.normal((batch, in_channels, time))
+        out = block(x)
+
+        self.assertEqual(out.shape, (batch, out_channels, time))
+
+    def test_output_shape_kernel5_dilation2(self):
+        """Test larger kernel with dilation preserves time."""
+        in_channels, out_channels = 16, 32
+        kernel_size, dilation = 5, 2
+        block = TimeDelayNetBlock(in_channels, out_channels, kernel_size, dilation)
+
+        batch, time = 1, 30
+        x = mx.random.normal((batch, in_channels, time))
+        out = block(x)
+
+        self.assertEqual(out.shape, (batch, out_channels, time))
+
+    def test_kernel1_no_padding(self):
+        """Test that kernel_size=1 results in no padding."""
+        block = TimeDelayNetBlock(16, 32, kernel_size=1, dilation=1)
+        self.assertEqual(block.pad, 0)
+
+    def test_pad_calculation(self):
+        """Test that padding is computed correctly for various kernel/dilation combos."""
+        # kernel=3, dilation=1 -> pad = (3-1)*1//2 = 1
+        block = TimeDelayNetBlock(16, 32, kernel_size=3, dilation=1)
+        self.assertEqual(block.pad, 1)
+
+        # kernel=3, dilation=2 -> pad = (3-1)*2//2 = 2
+        block = TimeDelayNetBlock(16, 32, kernel_size=3, dilation=2)
+        self.assertEqual(block.pad, 2)
+
+        # kernel=5, dilation=1 -> pad = (5-1)*1//2 = 2
+        block = TimeDelayNetBlock(16, 32, kernel_size=5, dilation=1)
+        self.assertEqual(block.pad, 2)
+
+        # kernel=5, dilation=3 -> pad = (5-1)*3//2 = 6
+        block = TimeDelayNetBlock(16, 32, kernel_size=5, dilation=3)
+        self.assertEqual(block.pad, 6)
+
+    def test_output_is_relu_activated(self):
+        """Test that output values are non-negative (ReLU applied)."""
+        block = TimeDelayNetBlock(16, 32, kernel_size=3, dilation=1)
+
+        x = mx.random.normal((1, 16, 50))
+        out = block(x)
+        out_np = np.array(out)
+
+        self.assertTrue(np.all(out_np >= 0), "Output should be non-negative after ReLU")
+
+
+class TestMelSpectrogram(unittest.TestCase):
+    """Tests for mel_spectrogram verifying correct parameters.
+
+    Uses snapshot values from the known-correct implementation to detect
+    if mel_scale, norm, or center/reflect padding is changed.
+    """
+
+    SNAPSHOT_RTOL = 2e-3
+    SNAPSHOT_ATOL = 2e-3
+
+    def _get_random_audio(self):
+        """Get deterministic random audio (seed=42, 12000 samples)."""
+        np.random.seed(42)
+        return np.random.randn(12000).astype(np.float32)
+
+    def test_output_shape_with_padding(self):
+        """Test that manual padding + center=False produces 46 frames for 12000 samples."""
+        audio = mx.array(self._get_random_audio())
+        mel = mel_spectrogram(audio)
+
+        # manual 384 pad + center=False
+        # padded_len = 12000 + 2*384 = 12768
+        # frames = 1 + (12768 - 1024) // 256 = 46
+        self.assertEqual(
+            mel.shape,
+            (1, 46, 128),
+            "mel_spectrogram must use manual padding without center padding"
+            f"Got shape {tuple(mel.shape)}, expected (1, 46, 128).",
+        )
+
+    def test_slaney_norm_values(self):
+        """Test that slaney norm is applied (not norm=None).
+
+        Without slaney norm, values would be ~3-5 (positive).
+        With slaney norm, values are around -1 to 0.
+        """
+        audio = mx.array(self._get_random_audio())
+        mel = mel_spectrogram(audio)
+        mel_np = np.array(mel)[0]
+
+        # Without norm="slaney", mel values are much higher (~3-5 range)
+        self.assertLess(
+            mel_np.mean(),
+            1.0,
+            "mel_spectrogram must use norm='slaney' in mel_filters(). "
+            f"Got mean={mel_np.mean():.2f}, expected ~-0.37. "
+            "Values > 1.0 indicate norm=None is being used.",
+        )
+
+        # Reference values from official Qwen3-TTS (slaney norm + slaney scale)
+        expected_frame0 = np.array(
+            [-0.21803714, 0.06630915, -0.31858957, -0.02480409, -0.4512914, -0.5911693]
+        )
+        actual_frame0 = mel_np[0, [0, 1, 2, 63, 126, 127]]
+        np.testing.assert_allclose(
+            actual_frame0,
+            expected_frame0,
+            rtol=self.SNAPSHOT_RTOL,
+            atol=self.SNAPSHOT_ATOL,
+            err_msg="mel_spectrogram must use norm='slaney' in mel_filters(). "
+            "These values are specific to slaney-normalized filterbank.",
+        )
+
+    def test_slaney_mel_scale(self):
+        """Test that slaney mel scale is used (not htk).
+
+        HTK scale distributes mel bins differently, producing different values.
+        With slaney scale, frame 0 bin 0 ≈ -0.22. With htk, it's ≈ -0.53.
+        """
+        audio = mx.array(self._get_random_audio())
+        mel = mel_spectrogram(audio)
+        mel_np = np.array(mel)[0]
+
+        # With htk scale, low-frequency bins shift significantly
+        # slaney: frame[0][0] ≈ -0.22, htk: frame[0][0] ≈ -0.53
+        self.assertAlmostEqual(
+            float(mel_np[0, 0]),
+            -0.21803714,
+            places=2,
+            msg="mel_spectrogram must use mel_scale='slaney' in mel_filters(). "
+            f"Got frame[0][bin 0]={mel_np[0, 0]:.4f}, expected ≈-0.22. "
+            "A value of ≈-0.53 indicates mel_scale='htk' is being used.",
+        )
+
+        # Frame 23, selected bins - these values are specific to slaney scale
+        expected_frame23 = np.array(
+            [0.08127937, 0.4368576, 0.43200976, -0.7714137, -0.24601418, 0.04274124]
+        )
+        actual_frame23 = mel_np[23, [0, 1, 2, 63, 126, 127]]
+        np.testing.assert_allclose(
+            actual_frame23,
+            expected_frame23,
+            rtol=self.SNAPSHOT_RTOL,
+            atol=self.SNAPSHOT_ATOL,
+            err_msg="mel_spectrogram must use mel_scale='slaney' in mel_filters(). "
+            "HTK scale distributes mel bins differently and produces wrong values.",
+        )
+
+    def test_reflect_padding_values(self):
+        """Test that reflect padding produces correct boundary frame values.
+
+        Without reflect padding, the first and last frames would have different
+        values because the signal edges are handled differently.
+        """
+        audio = mx.array(self._get_random_audio())
+        mel = mel_spectrogram(audio)
+        mel_np = np.array(mel)[0]
+
+        # Last frame values - sensitive to padding mode
+        expected_last = np.array(
+            [-0.16861804, 0.0474052, -0.3970174, -0.01738772, -0.28846806, -0.10941511]
+        )
+        actual_last = mel_np[-1, [0, 1, 2, 63, 126, 127]]
+        np.testing.assert_allclose(
+            actual_last,
+            expected_last,
+            rtol=self.SNAPSHOT_RTOL,
+            atol=self.SNAPSHOT_ATOL,
+            err_msg="mel_spectrogram must use reflect padding. "
+            "Boundary frames are sensitive to the padding mode used before STFT.",
+        )
+
+    def test_sine_wave_mel_bins(self):
+        """Test that a 1kHz sine wave activates the correct mel bins.
+
+        This verifies both the mel scale and filterbank norm are correct,
+        since wrong parameters would shift energy to different bins.
+        """
+        t = np.arange(12000, dtype=np.float32) / 24000.0
+        audio = mx.array(np.sin(2 * np.pi * 1000 * t).astype(np.float32))
+        mel = mel_spectrogram(audio)
+        mel_np = np.array(mel)[0]
+
+        # Frame 0 values for a 1kHz sine - specific to slaney scale + slaney norm
+        expected = np.array(
+            [
+                -1.2959518,
+                -1.2937515,
+                -1.2902284,
+                -1.2074544,
+                -0.9268621,
+                -2.3822036,
+                -5.331841,
+                -5.33782,
+            ]
+        )
+        actual = mel_np[0, [0, 1, 2, 10, 20, 63, 126, 127]]
+        np.testing.assert_allclose(
+            actual,
+            expected,
+            rtol=self.SNAPSHOT_RTOL,
+            atol=self.SNAPSHOT_ATOL,
+            err_msg="mel_spectrogram must use mel_scale='slaney' and norm='slaney'. "
+            "A 1kHz sine wave should produce these specific bin activations "
+            "with slaney-scale mel filterbank.",
+        )
+
+    def test_overall_statistics(self):
+        """Test overall mean and std match expected values."""
+        audio = mx.array(self._get_random_audio())
+        mel = mel_spectrogram(audio)
+        mel_np = np.array(mel)
+
+        np.testing.assert_allclose(
+            mel_np.mean(),
+            -0.37329558,
+            rtol=self.SNAPSHOT_RTOL,
+            atol=self.SNAPSHOT_ATOL,
+            err_msg="mel_spectrogram output mean should be ~-0.37 with correct params. "
+            f"Got mean={mel_np.mean():.4f}. A positive mean (~2.5) indicates norm=None.",
+        )
+        np.testing.assert_allclose(
+            mel_np.std(),
+            0.37445435,
+            rtol=self.SNAPSHOT_RTOL,
+            atol=self.SNAPSHOT_ATOL,
+            err_msg="mel_spectrogram output std should be ~0.37 with correct params. "
+            f"Got std={mel_np.std():.4f}.",
+        )
+
+
+class _DtypeTestEmbedding:
+    def __init__(self, hidden_size: int, dtype):
+        self.hidden_size = hidden_size
+        self.dtype = dtype
+
+    def __call__(self, token_ids):
+        return mx.zeros((*token_ids.shape, self.hidden_size), dtype=self.dtype)
+
+
+class _DtypeTestCodePredictor:
+    def __init__(self, embedding):
+        self.codec_embedding = [embedding]
+
+
+class _DtypeTestTalker:
+    def __init__(self, hidden_size: int = 4, dtype=mx.bfloat16):
+        self.embedding = _DtypeTestEmbedding(hidden_size, dtype)
+        self.code_predictor = _DtypeTestCodePredictor(self.embedding)
+
+    def get_input_embeddings(self):
+        return self.embedding
+
+    def get_text_embeddings(self):
+        return self.embedding
+
+    def text_projection(self, embeddings):
+        return embeddings
+
+
+class _DtypeTestSpeechTokenizer:
+    def encode(self, audio):
+        return mx.zeros((1, 2, 2), dtype=mx.int32)
+
+
+def _make_dtype_test_model():
+    model = Model.__new__(Model)
+    model.config = SimpleNamespace(
+        tts_bos_token_id=1,
+        tts_eos_token_id=2,
+        tts_pad_token_id=3,
+        talker_config=SimpleNamespace(
+            spk_id={},
+            spk_is_dialect={},
+            codec_language_id={},
+            codec_nothink_id=4,
+            codec_think_bos_id=5,
+            codec_think_eos_id=6,
+            codec_think_id=7,
+            codec_pad_id=8,
+            codec_bos_id=9,
+            num_code_groups=2,
+        ),
+    )
+    model.talker = _DtypeTestTalker()
+    model.tokenizer = SimpleNamespace(encode=lambda text: list(range(12)))
+    model.speaker_encoder = object()
+    model.speech_tokenizer = _DtypeTestSpeechTokenizer()
+    model.extract_speaker_embedding = lambda audio: mx.ones((1, 4), dtype=mx.float32)
+    model._icl_cache = {}
+    return model
+
+
+class TestQwen3TTSTextConditioning(unittest.TestCase):
+    @staticmethod
+    def make_model(model_type="custom_voice"):
+        model = _make_dtype_test_model()
+        model.config.tts_model_type = model_type
+
+        def encode(text):
+            if text.startswith("<|im_start|>user\n"):
+                return list(range(12))
+            content = text.split("\n", 1)[1].split("<|im_end|>", 1)[0]
+            return list(range(3 + len(content) + 5))
+
+        model.tokenizer.encode = encode
+        model.talker.embedding = lambda ids: mx.broadcast_to(
+            ids.astype(mx.bfloat16)[..., None], (*ids.shape, 4)
+        )
+        return model
+
+    def test_prefill_complete_text_for_all_model_types(self):
+        expected = [0, 1, 2, 7, 8, 9, 9, 11, 12, 13, 14, 10, 12]
+        for model_type in ("base", "custom_voice", "voice_design"):
+            with self.subTest(model_type=model_type):
+                model = self.make_model(model_type)
+                inputs, trailing, pad = model._prepare_generation_inputs("text")
+                self.assertEqual(inputs[0, :, 0].tolist(), expected)
+                self.assertEqual(trailing.tolist(), pad.tolist())
+                self.assertEqual(trailing.shape, (1, 1, 4))
+                self.assertEqual(inputs.dtype, mx.bfloat16)
+
+    def test_xvector_only_prefills_complete_text(self):
+        model = self.make_model("base")
+        ref_audio = mx.zeros((2400,), dtype=mx.float32)
+        with patch.object(
+            model, "extract_speaker_embedding", wraps=model.extract_speaker_embedding
+        ) as extract:
+            inputs, trailing, pad = model._prepare_generation_inputs(
+                "text", ref_audio=ref_audio
+            )
+        extract.assert_called_once_with(ref_audio)
+        self.assertEqual(inputs.shape[1], 14)
+        self.assertEqual(inputs[0, -6:, 0].tolist(), [11, 12, 13, 14, 10, 12])
+        self.assertEqual(inputs.dtype, mx.bfloat16)
+        self.assertEqual(trailing.tolist(), pad.tolist())
+
+    def test_instructions_remain_before_role_and_complete_text(self):
+        model = self.make_model()
+        inputs, trailing, _ = model._prepare_generation_inputs(
+            "text", instruct="Speak calmly."
+        )
+        self.assertEqual(inputs[0, :12, 0].tolist(), list(range(12)))
+        self.assertEqual(inputs.shape[1], 25)
+        self.assertEqual(trailing.shape[1], 1)
+
+    def test_batch_prefill_preserves_unequal_text_lengths(self):
+        model = self.make_model()
+        texts = ["a", "longer text"]
+        batch = model._prepare_batch_inputs(texts, return_metadata=True)
+        self.assertEqual(batch.prefill_lens, [10, 20])
+        self.assertEqual(batch.left_padding, [10, 0])
+        self.assertEqual(batch.trailing_lens, [1, 1])
+        self.assertEqual(batch.attention_mask[0].tolist(), [0] * 10 + [1] * 10)
+        self.assertEqual(batch.attention_mask[1].tolist(), [1] * 20)
+        for index, text in enumerate(texts):
+            with self.subTest(text=text):
+                inputs, _, pad = model._prepare_generation_inputs(text)
+                left = batch.left_padding[index]
+                self.assertEqual(
+                    batch.input_embeds[index : index + 1, left:].tolist(),
+                    inputs.tolist(),
+                )
+                self.assertEqual(
+                    batch.trailing_text_hidden[index : index + 1].tolist(), pad.tolist()
+                )
+
+
+class TestQwen3TTSSpeakerEmbeddingDtype(unittest.TestCase):
+    def test_xvector_prefill_uses_talker_dtype(self):
+        model = _make_dtype_test_model()
+
+        input_embeds, trailing_text_hidden, tts_pad_embed = (
+            model._prepare_generation_inputs(
+                text="dtype regression",
+                ref_audio=mx.zeros((2400,), dtype=mx.float32),
+            )
+        )
+
+        self.assertEqual(input_embeds.dtype, mx.bfloat16)
+        self.assertEqual(trailing_text_hidden.dtype, mx.bfloat16)
+        self.assertEqual(tts_pad_embed.dtype, mx.bfloat16)
+
+    def test_icl_prefill_uses_talker_dtype(self):
+        model = _make_dtype_test_model()
+
+        input_embeds, trailing_text_hidden, tts_pad_embed, _ = (
+            model._prepare_icl_generation_inputs(
+                text="dtype regression",
+                ref_audio=mx.zeros((2400,), dtype=mx.float32),
+                ref_text="reference transcript",
+            )
+        )
+
+        self.assertEqual(input_embeds.dtype, mx.bfloat16)
+        self.assertEqual(trailing_text_hidden.dtype, mx.bfloat16)
+        self.assertEqual(tts_pad_embed.dtype, mx.bfloat16)
+
+
+class _FakeCodePredictor:
+    def __init__(self):
+        self.codec_embedding = []
+
+    def make_cache(self):
+        return []
+
+
+class _FakeTalker:
+    def __init__(self, hidden_size: int, vocab_size: int):
+        self.hidden_size = hidden_size
+        self.vocab_size = vocab_size
+        self.code_predictor = _FakeCodePredictor()
+
+    def make_cache(self):
+        return []
+
+    def get_input_embeddings(self):
+        return lambda token: mx.zeros((1, 1, self.hidden_size), dtype=mx.float32)
+
+    def __call__(self, input_embeds, cache=None):
+        logits = mx.zeros((1, 1, self.vocab_size), dtype=mx.float32)
+        hidden = mx.zeros((1, 1, self.hidden_size), dtype=mx.float32)
+        return logits, hidden
+
+
+class _FakeSpeechTokenizer:
+    def __init__(self):
+        self.decoder = SimpleNamespace(reset_streaming_state=lambda: None)
+
+    def decode(self, codes):
+        return mx.zeros((1, 16), dtype=mx.float32), mx.array([16], dtype=mx.int32)
+
+
+def _make_generation_test_model(text_token_count: int = 10):
+    hidden_size = 4
+    vocab_size = 1100
+
+    model = Model.__new__(Model)
+    model._sample_rate = 24000
+    model.generate_config = None
+    model.config = SimpleNamespace(
+        talker_config=SimpleNamespace(
+            vocab_size=vocab_size,
+            codec_eos_token_id=vocab_size - 1,
+            num_code_groups=1,
+        )
+    )
+    model.talker = _FakeTalker(hidden_size=hidden_size, vocab_size=vocab_size)
+    model.speech_tokenizer = _FakeSpeechTokenizer()
+    model.tokenizer = SimpleNamespace(encode=lambda text: list(range(text_token_count)))
+    model._prepare_generation_inputs = lambda *args, **kwargs: (
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+    )
+    model._prepare_icl_generation_inputs = lambda **kwargs: (
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        mx.zeros((1, 1, 1), dtype=mx.int32),
+    )
+    model._sample_token = lambda *args, **kwargs: mx.array([[1]], dtype=mx.int32)
+    return model
+
+
+class TestQwen3TTSSamplingFilters(unittest.TestCase):
+    def test_sample_token_scales_before_top_p_filtering(self):
+        logits = mx.array([[[3.0, 2.0, 1.0, 0.0]]], dtype=mx.float32)
+        captured = {}
+
+        def capture_sample(scores, temperature):
+            captured["scores"] = scores
+            captured["temperature"] = temperature
+            return mx.argmax(scores, axis=-1)
+
+        with patch(
+            "mlx_audio.tts.models.qwen3_tts.qwen3_tts.categorical_sampling",
+            side_effect=capture_sample,
+        ):
+            Model._sample_token(
+                Model.__new__(Model),
+                logits,
+                temperature=2.0,
+                top_k=0,
+                top_p=0.8,
+                repetition_penalty=1.0,
+                min_p=0.0,
+            )
+
+        scaled_logits = mx.array([[1.5, 1.0, 0.5, 0.0]], dtype=mx.float32)
+        expected_mask = _top_p_keep_mask(scaled_logits, 0.8)
+        expected_scores = mx.where(expected_mask, scaled_logits, -float("inf"))
+        actual_mask = mx.isfinite(captured["scores"])
+
+        np.testing.assert_allclose(
+            np.array(captured["scores"]), np.array(expected_scores)
+        )
+        np.testing.assert_array_equal(np.array(actual_mask), np.array(expected_mask))
+        self.assertEqual(captured["temperature"], 1.0)
+
+    def test_sample_token_batch_scales_before_min_p_filtering(self):
+        logits = mx.array(
+            [
+                [[3.0, 2.0, 1.0, 0.0]],
+                [[0.0, 1.0, 2.0, 3.0]],
+            ],
+            dtype=mx.float32,
+        )
+        captured = {}
+
+        def capture_sample(scores, temperature):
+            captured["scores"] = scores
+            captured["temperature"] = temperature
+            return mx.argmax(scores, axis=-1)
+
+        with patch(
+            "mlx_audio.tts.models.qwen3_tts.qwen3_tts.categorical_sampling",
+            side_effect=capture_sample,
+        ):
+            Model._sample_token_batch(
+                Model.__new__(Model),
+                logits,
+                temperature=2.0,
+                top_k=0,
+                top_p=1.0,
+                repetition_penalty=1.0,
+                min_p=0.3,
+            )
+
+        scaled_logits = mx.array(
+            [
+                [1.5, 1.0, 0.5, 0.0],
+                [0.0, 0.5, 1.0, 1.5],
+            ],
+            dtype=mx.float32,
+        )
+        expected_mask = _min_p_keep_mask(scaled_logits, 0.3)
+        expected_scores = mx.where(expected_mask, scaled_logits, -float("inf"))
+        actual_mask = mx.isfinite(captured["scores"])
+
+        np.testing.assert_allclose(
+            np.array(captured["scores"]), np.array(expected_scores)
+        )
+        np.testing.assert_array_equal(np.array(actual_mask), np.array(expected_mask))
+        self.assertEqual(captured["temperature"], 1.0)
+
+
+class TestQwen3TTSRepetitionPenaltyWindow(unittest.TestCase):
+    """Regression tests for mlx-audio#910.
+
+    The ICL voice-cloning path forces repetition_penalty to a 1.5 floor and used
+    to penalize the *set of all* previously generated codec tokens. A slow
+    reference voice's recurring tokens therefore stayed suppressed for the whole
+    utterance, progressively accelerating the speaking pace. The penalty now
+    only considers a bounded recent window (repetition_context_size).
+    """
+
+    # idx 5 is the top logit, idx 7 a close runner-up. Penalizing idx 5 (÷1.5)
+    # drops it below idx 7 and flips the greedy argmax from 5 -> 7.
+    _LOGITS = mx.array([[[1.0, 1.0, 1.0, 1.0, 1.0, 10.0, 1.0, 9.0]]], dtype=mx.float32)
+
+    def _greedy(self, generated_tokens, repetition_context_size):
+        token = Model._sample_token(
+            Model.__new__(Model),
+            self._LOGITS,
+            temperature=0.0,  # greedy -> deterministic argmax
+            top_k=0,
+            top_p=1.0,
+            repetition_penalty=1.5,
+            repetition_context_size=repetition_context_size,
+            generated_tokens=generated_tokens,
+        )
+        return int(np.array(token).reshape(-1)[0])
+
+    def test_old_token_outside_window_is_not_penalized(self):
+        # idx 5 appears once at the very start, then 100 unrelated tokens.
+        generated = [5] + [0] * 100
+        # Default bounded window: idx 5 has fallen out -> not penalized -> stays.
+        self.assertEqual(self._greedy(generated, repetition_context_size=64), 5)
+        # Full-history behavior (the bug): idx 5 still penalized -> flips to 7.
+        self.assertEqual(self._greedy(generated, repetition_context_size=200), 7)
+
+    def test_token_repeating_within_window_is_still_penalized(self):
+        # idx 5 recurs constantly inside the window: it should still be penalized,
+        # so the window does not silently disable the repetition penalty.
+        generated = [5] * 100
+        self.assertEqual(self._greedy(generated, repetition_context_size=64), 7)
+
+    def test_batch_old_token_outside_window_is_not_penalized(self):
+        generated = [[5] + [0] * 100]
+        token = Model._sample_token_batch(
+            Model.__new__(Model),
+            self._LOGITS,
+            temperature=0.0,
+            top_k=0,
+            top_p=1.0,
+            repetition_penalty=1.5,
+            repetition_context_size=64,
+            generated_tokens_per_seq=generated,
+        )
+        self.assertEqual(int(np.array(token).reshape(-1)[0]), 5)
+
+        token_full = Model._sample_token_batch(
+            Model.__new__(Model),
+            self._LOGITS,
+            temperature=0.0,
+            top_k=0,
+            top_p=1.0,
+            repetition_penalty=1.5,
+            repetition_context_size=200,
+            generated_tokens_per_seq=generated,
+        )
+        self.assertEqual(int(np.array(token_full).reshape(-1)[0]), 7)
+
+
+class TestQwen3TTSNoEosFilterBypass(unittest.TestCase):
+    """Regression tests for mlx-audio#882.
+
+    _sample_token/_sample_token_batch used to splice a token's pre-filter
+    logit back in after top_k/top_p filtering when it matched eos_token_id,
+    giving it nonzero sampling probability even when top_k/top_p had ranked
+    it out of the surviving candidate set. That let EOS fire before the
+    model's true completion point, truncating audio mid-utterance. Every
+    token, including EOS, must now be filtered identically.
+    """
+
+    def test_low_ranked_token_never_sampled_under_top_k(self):
+        model = Model.__new__(Model)
+        # Last token sits far below the top-2 cutoff; a correct top_k filter
+        # must exclude it from every draw.
+        logits = mx.array([[[10.0, 9.0, 8.0, 7.0, -100.0]]], dtype=mx.float32)
+
+        sampled = set()
+        for _ in range(200):
+            token = Model._sample_token(
+                model,
+                logits,
+                temperature=1.0,
+                top_k=2,
+                top_p=1.0,
+                repetition_penalty=1.0,
+            )
+            sampled.add(int(token[0, 0]))
+
+        self.assertNotIn(4, sampled)
+
+    def test_low_ranked_token_never_sampled_under_top_k_batched(self):
+        model = Model.__new__(Model)
+        logits = mx.array(
+            [
+                [[10.0, 9.0, 8.0, 7.0, -100.0]],
+                [[7.0, 8.0, 9.0, 10.0, -100.0]],
+            ],
+            dtype=mx.float32,
+        )
+
+        sampled = set()
+        for _ in range(200):
+            tokens = Model._sample_token_batch(
+                model,
+                logits,
+                temperature=1.0,
+                top_k=2,
+                top_p=1.0,
+                repetition_penalty=1.0,
+            )
+            sampled.update(int(t) for t in tokens[:, 0].tolist())
+
+        self.assertNotIn(4, sampled)
+
+    def test_sample_token_no_longer_accepts_eos_token_id(self):
+        model = Model.__new__(Model)
+        logits = mx.array([[[1.0, 0.0]]], dtype=mx.float32)
+
+        with self.assertRaises(TypeError):
+            Model._sample_token(model, logits, eos_token_id=1)
+
+        with self.assertRaises(TypeError):
+            Model._sample_token_batch(model, logits, eos_token_id=1)
+
+
+class TestQwen3TTSGenerationDefaults(unittest.TestCase):
+    def _instruct_options(self, model_type, config=None, **overrides):
+        model = _make_generation_test_model()
+        model.config.tts_model_type = model_type
+        model.config.tts_model_size = "1b7"
+        model.supported_speakers = ["Vivian"]
+        model.load_generate_config(config)
+        with patch.object(
+            model, "_generate_with_instruct", return_value=iter(())
+        ) as gen:
+            if model_type == "custom_voice":
+                list(
+                    model.generate_custom_voice("hello", speaker="Vivian", **overrides)
+                )
+            else:
+                list(
+                    model.generate_voice_design(
+                        "hello", instruct="warm voice", **overrides
+                    )
+                )
+        return gen.call_args.kwargs
+
+    def test_reference_defaults_without_metadata(self):
+        for model_type in ("custom_voice", "voice_design"):
+            with self.subTest(model_type=model_type):
+                options = self._instruct_options(model_type)
+                self.assertEqual(options["temperature"], 0.9)
+                self.assertEqual(options["max_tokens"], 2048)
+                self.assertEqual(options["top_k"], 50)
+                self.assertEqual(options["top_p"], 1.0)
+                self.assertEqual(options["repetition_penalty"], 1.05)
+
+    def test_metadata_defaults_and_explicit_overrides(self):
+        config = dict(
+            temperature=0.5,
+            max_new_tokens=8192,
+            top_k=30,
+            top_p=0.8,
+            repetition_penalty=1.1,
+        )
+        for model_type in ("custom_voice", "voice_design"):
+            with self.subTest(model_type=model_type):
+                options = self._instruct_options(model_type, config)
+                for name, value in config.items():
+                    self.assertEqual(
+                        options["max_tokens" if name == "max_new_tokens" else name],
+                        value,
+                    )
+
+                overrides = dict(
+                    temperature=0.0,
+                    max_tokens=17,
+                    top_k=0,
+                    top_p=1.0,
+                    repetition_penalty=1.0,
+                )
+                options = self._instruct_options(model_type, config, **overrides)
+                for name, value in overrides.items():
+                    self.assertEqual(options[name], value)
+                self.assertEqual(config["temperature"], 0.5)
+
+    def test_partial_and_null_metadata_fall_back_to_reference(self):
+        options = self._instruct_options(
+            "voice_design",
+            dict(temperature=None, max_new_tokens=None, top_k=0),
+            temperature=None,
+            max_tokens=None,
+        )
+        self.assertEqual(options["temperature"], 0.9)
+        self.assertEqual(options["max_tokens"], 2048)
+        self.assertEqual(options["top_k"], 0)
+        self.assertEqual(options["top_p"], 1.0)
+        self.assertEqual(options["repetition_penalty"], 1.05)
+
+    def test_generate_uses_metadata_for_base_sampling_and_token_limit(self):
+        model = _make_generation_test_model()
+        model.load_generate_config(
+            dict(
+                temperature=0.4,
+                max_new_tokens=3,
+                top_k=20,
+                top_p=0.85,
+                repetition_penalty=1.1,
+            )
+        )
+        with patch.object(model, "_sample_token", wraps=model._sample_token) as sample:
+            results = list(model.generate("hello"))
+
+        self.assertEqual(results[-1].token_count, 3)
+        options = sample.call_args.kwargs
+        self.assertEqual(options["temperature"], 0.4)
+        self.assertEqual(options["top_k"], 20)
+        self.assertEqual(options["top_p"], 0.85)
+        self.assertEqual(options["repetition_penalty"], 1.1)
+
+    def test_batch_generate_resolves_metadata_before_creating_session(self):
+        model = _make_generation_test_model()
+        model.load_generate_config(
+            dict(
+                temperature=0.4,
+                max_new_tokens=8192,
+                top_k=20,
+                top_p=0.85,
+                repetition_penalty=1.1,
+            )
+        )
+        session = MagicMock(idle=True)
+        with patch.object(
+            model, "create_tts_batch_session", return_value=session
+        ) as create:
+            list(model.batch_generate(["hello"], temperature=0.0, top_k=0))
+
+        options = create.call_args.args[0]
+        self.assertEqual(options.temperature, 0.0)
+        self.assertEqual(options.max_tokens, 8192)
+        self.assertEqual(options.top_k, 0)
+        self.assertEqual(options.top_p, 0.85)
+        self.assertEqual(options.repetition_penalty, 1.1)
+
+
+class TestQwen3TTSMaxTokens(unittest.TestCase):
+    def test_generate_with_instruct_honors_explicit_max_tokens(self):
+        model = _make_generation_test_model(text_token_count=10)
+
+        results = list(
+            Model._generate_with_instruct(
+                model,
+                text="slow emotional speech",
+                speaker="vivian",
+                language="English",
+                instruct="Speak in a sad, low, subdued, and slow tone.",
+                temperature=0.9,
+                max_tokens=120,
+                top_k=50,
+                top_p=1.0,
+                repetition_penalty=1.05,
+                verbose=False,
+            )
+        )
+
+        self.assertEqual(results[-1].token_count, 120)
+
+    def test_generate_icl_honors_explicit_max_tokens(self):
+        model = _make_generation_test_model(text_token_count=10)
+
+        results = list(
+            Model._generate_icl(
+                model,
+                text="slow cloned speech",
+                ref_audio=mx.zeros((24000,), dtype=mx.float32),
+                ref_text="This is the reference transcript.",
+                language="English",
+                temperature=0.9,
+                max_tokens=120,
+                top_k=50,
+                top_p=1.0,
+                repetition_penalty=1.5,
+                verbose=False,
+            )
+        )
+
+        self.assertEqual(results[-1].token_count, 120)
+
+
+class TestQwen3TTSBaseVoiceValidation(unittest.TestCase):
+    """Regression tests for mlx-audio#892: passing an unsupported `voice` to a
+    Base model (which has no preset speakers) used to silently no-op instead
+    of erroring, producing unconditioned/random-sounding audio on every call.
+    """
+
+    def test_generate_rejects_unsupported_voice_on_base_model(self):
+        model = _make_generation_test_model()
+        model.supported_speakers = []
+
+        with self.assertRaises(ValueError):
+            next(model.generate(text="Hello", voice="Chelsie"))
+
+    def test_generate_allows_no_voice_on_base_model(self):
+        model = _make_generation_test_model()
+        model.supported_speakers = []
+
+        results = list(model.generate(text="Hello", voice=None, max_tokens=1))
+
+        self.assertTrue(results)
+
+    def test_generate_allows_supported_voice_case_insensitively(self):
+        model = _make_generation_test_model()
+        model.supported_speakers = ["Vivian"]
+
+        results = list(model.generate(text="Hello", voice="vivian", max_tokens=1))
+
+        self.assertTrue(results)
+
+
+class TestDecoderBlockUpsampleStreaming(unittest.TestCase):
+    """Tests for DecoderBlockUpsample streaming (step) against the full call."""
+
+    def _block(self, upsample_rate):
+        mx.random.seed(0)
+        block = DecoderBlockUpsample(in_dim=6, out_dim=5, upsample_rate=upsample_rate)
+        # Non-zero bias, so a doubled bias at chunk boundaries shows
+        block.conv.bias = mx.random.normal(block.conv.bias.shape)
+        return block
+
+    def _stream(self, block, x, chunk_sizes):
+        block.reset_state()
+        out, start = [], 0
+        for size in chunk_sizes:
+            out.append(block.step(x[:, start : start + size, :]))
+            start += size
+        self.assertEqual(start, x.shape[1])
+        return mx.concatenate(out, axis=1)
+
+    def test_step_matches_full_call_for_any_chunking(self):
+        """Test that streaming in any chunk sizes matches one call."""
+        for upsample_rate in (2, 4, 8):
+            block = self._block(upsample_rate)
+            x = mx.random.normal((1, 12, 6))
+            full = block(x)
+            for chunks in ([1] * 12, [2] * 6, [3, 1, 4, 4], [12]):
+                streamed = self._stream(block, x, chunks)
+                self.assertEqual(streamed.shape, full.shape)
+                np.testing.assert_allclose(
+                    np.array(streamed),
+                    np.array(full),
+                    atol=1e-5,
+                    err_msg=f"upsample_rate={upsample_rate}, chunks={chunks}",
+                )
+
+
+class _RecordingStreamingDecoder:
+    """Records every streaming_step input; returns fixed-rate fake audio."""
+
+    def __init__(self, upsample: int = 4):
+        self.upsample = upsample
+        self.step_inputs = []
+        self.events = []
+
+    def reset_streaming_state(self):
+        self.events.append("reset")
+
+    def streaming_step(self, codes):
+        self.events.append("step")
+        self.step_inputs.append(np.array(codes))
+        return mx.zeros(
+            (codes.shape[0], 1, codes.shape[2] * self.upsample), dtype=mx.float32
+        )
+
+
+def _make_icl_streaming_model(ref_time: int):
+    hidden_size = 4
+    model = _make_generation_test_model()
+    decoder = _RecordingStreamingDecoder()
+    model.speech_tokenizer = SimpleNamespace(decoder=decoder)
+    ref_codes = mx.arange(ref_time, dtype=mx.int32).reshape(1, 1, ref_time)
+    model._prepare_icl_generation_inputs = lambda **kwargs: (
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        mx.zeros((1, 1, hidden_size), dtype=mx.float32),
+        ref_codes,
+    )
+    return model, decoder
+
+
+class TestQwen3TTSICLStreamingPriming(unittest.TestCase):
+    """ICL streaming must decode with the reference acoustic context.
+
+    The non-streaming ICL path decodes ref_codes + generated codes together
+    and trims the reference, so the decoder always sees the voice's left
+    context. The streaming path must prime the decoder with the reference
+    tail to match, and the primed (reference) audio must not be yielded.
+    """
+
+    def _run(self, model, **kwargs):
+        defaults = dict(
+            text="hello there",
+            ref_audio=mx.zeros((2400,), dtype=mx.float32),
+            ref_text="reference transcript",
+            stream=True,
+            max_tokens=3,
+            streaming_interval=0.08,  # chunk size of 1 token
+        )
+        defaults.update(kwargs)
+        return list(model._generate_icl(**defaults))
+
+    def test_stream_primes_decoder_with_reference_tail(self):
+        model, decoder = _make_icl_streaming_model(ref_time=60)
+
+        self._run(model)
+
+        self.assertEqual(decoder.events[0], "reset")
+        self.assertEqual(decoder.events[1], "step")
+        primer = decoder.step_inputs[0]
+        self.assertEqual(primer.shape, (1, 1, 25))
+        np.testing.assert_array_equal(primer[0, 0], np.arange(35, 60))
+
+    def test_priming_uses_entire_reference_when_shorter_than_context(self):
+        model, decoder = _make_icl_streaming_model(ref_time=10)
+
+        self._run(model)
+
+        primer = decoder.step_inputs[0]
+        self.assertEqual(primer.shape, (1, 1, 10))
+        np.testing.assert_array_equal(primer[0, 0], np.arange(10))
+
+    def test_primed_reference_audio_is_not_yielded(self):
+        model, decoder = _make_icl_streaming_model(ref_time=60)
+
+        results = self._run(model)
+
+        total_samples = sum(r.samples for r in results)
+        self.assertEqual(total_samples, 3 * decoder.upsample)
+        self.assertEqual(sum(r.token_count for r in results), 3)
+
+    def test_generated_chunks_unchanged_by_priming(self):
+        model, decoder = _make_icl_streaming_model(ref_time=60)
+
+        self._run(model)
+
+        generated = np.concatenate([c[0, 0] for c in decoder.step_inputs[1:]])
+        np.testing.assert_array_equal(generated, np.ones(3, dtype=np.int32))
+
+    def test_priming_skipped_when_context_size_zero(self):
+        model, decoder = _make_icl_streaming_model(ref_time=60)
+
+        self._run(model, streaming_context_size=0)
+
+        self.assertEqual(len(decoder.step_inputs), 3)
+        self.assertEqual(decoder.step_inputs[0].shape, (1, 1, 1))
+
+    def test_priming_skipped_when_reference_is_empty(self):
+        model, decoder = _make_icl_streaming_model(ref_time=0)
+
+        self._run(model)
+
+        self.assertEqual(len(decoder.step_inputs), 3)
+        self.assertEqual(decoder.step_inputs[0].shape, (1, 1, 1))
+
+
+if __name__ == "__main__":
+    unittest.main()

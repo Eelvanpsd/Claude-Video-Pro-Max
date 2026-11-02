@@ -30,6 +30,7 @@
 10. **earshot** — measured listening: realness, match, sync timeline, sound sheet (synthesis side skipped).
 11. **real-sfx** — placement, level and verification rules for real library SFX (library mode only).
 12. **VoiceStudio** — voice-side ideas (room-tone pauses, forced word alignment, signal checks); default engine non-commercial.
+13. **mlx-audio** — the library our Kokoro narration already runs on; adds TTS word timestamps, forced alignment, VAD.
 
 ## Sound repos (9–11)
 
@@ -44,15 +45,15 @@
 | **Synthesis?** | none | ⚠️ `forge`/`sfx`/`kit` make sound in code | ⚠️ bundled uisfx is synthesized (opt-out `--ui library`) |
 | **Best single takeaway** | `license=cc0` at the source + attribution manifest | `realness` + `timeline --cues` sync proof | Audible-start placement + voice-safe + mono check |
 
-## Voice repo (12)
+## Voice repos (12–13)
 
-| | VoiceStudio |
-|---|---|
-| **Author** | Palash Debnath (debpalash) / Yupcha Softwares |
-| **License** | AGPL-3.0 app; `omnivoice/` Apache-2.0; default weights CC-BY-NC |
-| **Role** | Generate / clone / design / dub voices; transcribe with word timing |
-| **Language** | Python (FastAPI, uv) + TypeScript (Electron, Bun) |
-| **Fully free / local?** | ✅ CPU/MPS/CUDA; paid commercial licence only for closed-source embedding |
-| **Agent skill included** | `skills/` (voicestudio, voicestudio-maintainer) + MCP at `/mcp` |
-| **Synthesis?** | Voice is TTS by design (our narration already is: Kokoro); no SFX synthesis |
-| **Best single takeaway** | Room-tone pause fill + WhisperX ±10–30 ms word alignment |
+| | VoiceStudio | mlx-audio |
+|---|---|---|
+| **Author** | Palash Debnath (debpalash) / Yupcha Softwares | Prince Canuma (Blaizzy) |
+| **License** | AGPL-3.0 app; `omnivoice/` Apache-2.0; default weights CC-BY-NC | MIT; models own licences (Kokoro Apache-2.0) |
+| **Role** | Generate / clone / design / dub voices; transcribe with word timing | Runtime library: TTS, STT, alignment, VAD, enhancement |
+| **Language** | Python (FastAPI, uv) + TypeScript (Electron, Bun) | Python (MLX) + Swift sibling |
+| **Fully free / local?** | ✅ CPU/MPS/CUDA; paid commercial licence only for closed-source embedding | ✅ Apple Silicon only |
+| **Agent skill included** | `skills/` (voicestudio, voicestudio-maintainer) + MCP at `/mcp` | – (CLI, Python API, OpenAI-compatible server) |
+| **Synthesis?** | Voice is TTS by design (our narration already is: Kokoro); no SFX synthesis | TTS by design (Kokoro = our narrator); music generation available but off-limits |
+| **Best single takeaway** | Room-tone pause fill + WhisperX ±10–30 ms word alignment | Kokoro `start_ts`/`end_ts`: word times straight from the TTS |

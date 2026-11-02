@@ -1,0 +1,763 @@
+# Copyright (c) 2025, Prince Canuma and contributors (https://github.com/Blaizzy/mlx-audio)
+
+import math
+from typing import MutableMapping, Optional
+
+import mlx.core as mx
+import mlx.nn as nn
+
+from .config import AcousticTokenizerConfig
+
+
+class ConvRMSNorm(nn.Module):
+    """RMSNorm for convolutional features (B, C, T) format."""
+
+    def __init__(self, dim: int, eps: float = 1e-5, elementwise_affine: bool = True):
+        super().__init__()
+        self.dim = dim
+        self.eps = eps
+        self.elementwise_affine = elementwise_affine
+        if elementwise_affine:
+            self.weight = mx.ones((dim,))
+        else:
+            self.weight = None
+
+    def _norm(self, x: mx.array) -> mx.array:
+        return x * mx.rsqrt(mx.mean(x**2, axis=-1, keepdims=True) + self.eps)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        # x: (B, C, T) -> transpose to (B, T, C) for normalization
+        x = mx.transpose(x, (0, 2, 1))
+        output = self._norm(x.astype(mx.float32)).astype(x.dtype)
+        if self.weight is not None:
+            output = output * self.weight
+        # Transpose back to (B, C, T)
+        return mx.transpose(output, (0, 2, 1))
+
+
+class CausalConv1d(nn.Module):
+    """Causal 1D convolution with padding on the left.
+
+    Input/output format: (B, C, T) - batch, channels, time (PyTorch convention)
+    MLX Conv1d expects: (B, T, C) - batch, time, channels
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.dilation = dilation
+        self.groups = groups
+        self._cache_key = f"causal_conv:{id(self)}"
+
+        # Calculate padding for causal convolution
+        self.padding = (kernel_size - 1) * dilation - (stride - 1)
+
+        # Use MLX Conv1d with groups parameter
+        # For grouped conv, MLX weight shape is (C_out, K, C_in/groups)
+        self.conv = nn.Conv1d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=0,  # We handle padding manually
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        if cache is not None:
+            if x.shape[2] % self.stride:
+                raise ValueError("Cached convolution chunks must align to the stride")
+
+            previous = cache.get(self._cache_key)
+            if previous is None and self.padding > 0:
+                previous = mx.zeros(
+                    (x.shape[0], self.in_channels, self.padding), dtype=x.dtype
+                )
+            if previous is not None and previous.shape[2] > 0:
+                x = mx.concatenate([previous, x], axis=2)
+
+            if self.padding > 0:
+                cache[self._cache_key] = x[:, :, -self.padding :]
+
+            x = self.conv(mx.transpose(x, (0, 2, 1)))
+            return mx.transpose(x, (0, 2, 1))
+
+        # x: (B, C, T) - input in PyTorch format
+        # Transpose to MLX format: (B, C, T) -> (B, T, C)
+        x = mx.transpose(x, (0, 2, 1))
+
+        extra = (-x.shape[1]) % self.stride
+        if self.padding > 0 or extra > 0:
+            x = mx.pad(x, [(0, 0), (self.padding, extra), (0, 0)])
+
+        # Apply conv - MLX expects (B, T, C)
+        x = self.conv(x)
+
+        # Transpose back to PyTorch format: (B, T, C) -> (B, C, T)
+        x = mx.transpose(x, (0, 2, 1))
+
+        return x
+
+
+class CausalConvTranspose1d(nn.Module):
+    """Causal transposed 1D convolution for upsampling.
+
+    Input/output format: (B, C, T) - batch, channels, time (PyTorch convention)
+    MLX ConvTranspose1d expects: (B, T, C) - batch, time, channels
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        bias: bool = True,
+        trim_right_ratio: float = 1.0,
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.trim_right_ratio = trim_right_ratio
+        self._cache_key = f"causal_conv_transpose:{id(self)}"
+
+        # Calculate padding
+        self.padding_total = kernel_size - stride
+
+        # Use MLX ConvTranspose1d
+        self.convtr = nn.ConvTranspose1d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=0,
+            bias=bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        if cache is not None:
+            return self._stream(x, cache)
+
+        # x: (B, C, T) - input in PyTorch format
+        # Transpose to MLX format: (B, C, T) -> (B, T, C)
+        x = mx.transpose(x, (0, 2, 1))
+
+        # Apply transposed conv
+        x = self.convtr(x)
+
+        # Transpose back to PyTorch format: (B, T, C) -> (B, C, T)
+        x = mx.transpose(x, (0, 2, 1))
+
+        # Trim padding for causal (on time dimension, now axis 2)
+        padding_right = math.ceil(self.padding_total * self.trim_right_ratio)
+        padding_left = self.padding_total - padding_right
+
+        if padding_left > 0:
+            x = x[:, :, padding_left:]
+        if padding_right > 0:
+            x = x[:, :, :-padding_right]
+
+        return x
+
+    def _stream(self, x: mx.array, cache: MutableMapping[str, mx.array]) -> mx.array:
+        if self.trim_right_ratio != 1.0:
+            raise ValueError(
+                "Streaming CausalConvTranspose1d requires trim_right_ratio=1.0"
+            )
+
+        contributions = mx.conv_transpose1d(
+            mx.transpose(x, (0, 2, 1)),
+            self.convtr.weight,
+            stride=self.stride,
+        )
+        contributions = mx.transpose(contributions, (0, 2, 1))
+
+        pending = cache.get(self._cache_key)
+        if pending is not None and pending.shape[2] > 0:
+            overlap = min(pending.shape[2], contributions.shape[2])
+            contributions = mx.concatenate(
+                [
+                    contributions[:, :, :overlap] + pending[:, :, :overlap],
+                    contributions[:, :, overlap:],
+                ],
+                axis=2,
+            )
+
+        emit_samples = x.shape[2] * self.stride
+        output = contributions[:, :, :emit_samples]
+        cache[self._cache_key] = contributions[:, :, emit_samples:]
+
+        if "bias" in self.convtr:
+            output = output + self.convtr.bias[None, :, None]
+        return output
+
+
+class DepthwiseConv(nn.Module):
+    """Depthwise separable convolution wrapped in a conv module."""
+
+    def __init__(
+        self,
+        dim: int,
+        kernel_size: int = 7,
+        causal: bool = True,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.dim = dim
+        self.kernel_size = kernel_size
+        self.causal = causal
+
+        # Wrapped in another conv module (to match HF structure: mixer.conv.conv.conv)
+        self.conv = CausalConv1d(
+            in_channels=dim,
+            out_channels=dim,
+            kernel_size=kernel_size,
+            groups=dim,
+            bias=bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        return self.conv(x, cache=cache)
+
+
+class Mixer(nn.Module):
+    """Mixer module wrapping depthwise conv."""
+
+    def __init__(
+        self, dim: int, kernel_size: int = 7, causal: bool = True, bias: bool = True
+    ):
+        super().__init__()
+        self.conv = DepthwiseConv(dim, kernel_size, causal, bias)
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        return self.conv(x, cache=cache)
+
+
+class FeedForward(nn.Module):
+    """Feed-forward network with SiLU activation.
+
+    Note: Uses linear1/linear2 naming to match HuggingFace weights.
+    """
+
+    def __init__(self, dim: int, mult: float = 4.0, bias: bool = True):
+        super().__init__()
+        hidden_dim = int(dim * mult)
+        self.linear1 = nn.Linear(dim, hidden_dim, bias=bias)
+        self.linear2 = nn.Linear(hidden_dim, dim, bias=bias)
+
+    def __call__(self, x: mx.array) -> mx.array:
+        x = self.linear1(x)
+        x = nn.gelu(x)
+        x = self.linear2(x)
+        return x
+
+
+class Block1D(nn.Module):
+    """1D convolutional block with depthwise conv and FFN."""
+
+    def __init__(
+        self,
+        dim: int,
+        layernorm: str = "RMSNorm",  # kept for config compatibility
+        eps: float = 1e-6,
+        causal: bool = True,
+        bias: bool = True,
+        layer_scale_init_value: float = 1e-6,
+    ):
+        super().__init__()
+        _ = layernorm
+        self.dim = dim
+
+        # Normalization
+        self.norm = ConvRMSNorm(dim, eps=eps)
+        self.ffn_norm = ConvRMSNorm(dim, eps=eps)
+
+        # Mixer (depthwise conv)
+        self.mixer = Mixer(dim, kernel_size=7, causal=causal, bias=bias)
+
+        # FFN
+        self.ffn = FeedForward(dim, mult=4.0, bias=bias)
+
+        # Layer scale - stored as parameters (gamma, ffn_gamma)
+        if layer_scale_init_value > 0:
+            self.gamma = mx.ones((dim,)) * layer_scale_init_value
+            self.ffn_gamma = mx.ones((dim,)) * layer_scale_init_value
+        else:
+            self.gamma = None
+            self.ffn_gamma = None
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        # x: (B, C, T)
+
+        # Mixer path
+        residual = x
+        x = self.norm(x)
+        x = self.mixer(x, cache=cache)
+        if self.gamma is not None:
+            x = x * mx.expand_dims(self.gamma, axis=(0, 2))
+        x = residual + x
+
+        # FFN path
+        residual = x
+        x = self.ffn_norm(x)
+        # Transpose for FFN: (B, C, T) -> (B, T, C)
+        x = mx.transpose(x, (0, 2, 1))
+        x = self.ffn(x)
+        # Transpose back: (B, T, C) -> (B, C, T)
+        x = mx.transpose(x, (0, 2, 1))
+        if self.ffn_gamma is not None:
+            x = x * mx.expand_dims(self.ffn_gamma, axis=(0, 2))
+        x = residual + x
+
+        return x
+
+
+class StemConv(nn.Module):
+    """Stem convolution layer wrapped in Sequential structure to match HF."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 7,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.conv = CausalConv1d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            bias=bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        return self.conv(x, cache=cache)
+
+
+class UpsampleLayer(nn.Module):
+    """Upsample layer with transposed convolution."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.convtr = CausalConvTranspose1d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            bias=bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        return self.convtr(x, cache=cache)
+
+
+class HeadConv(nn.Module):
+    """Output head convolution."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 7,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.conv = CausalConv1d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            bias=bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        return self.conv(x, cache=cache)
+
+
+class DownsampleLayer(nn.Module):
+    """Downsample layer with strided causal convolution."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int,
+        bias: bool = True,
+    ):
+        super().__init__()
+        self.conv = CausalConv1d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            bias=bias,
+        )
+
+    def __call__(self, x: mx.array, cache=None) -> mx.array:
+        return self.conv(x, cache=cache)
+
+
+class TokenizerEncoderOutput:
+    """Encoder output wrapper with optional sampling helper."""
+
+    def __init__(self, mean: mx.array, std=None):
+        self.mean = mean
+        self.std = std
+
+    def sample(self, dist_type: str = "fix"):
+        if dist_type == "fix" and self.std is not None:
+            std = self.std
+            if not isinstance(std, mx.array):
+                std = mx.array(std, dtype=self.mean.dtype)
+            x = self.mean + std * mx.random.normal(
+                self.mean.shape, dtype=self.mean.dtype
+            )
+            return x, std
+        if dist_type == "gaussian" and self.std is not None:
+            std_scale = float(self.std) / 0.8
+            batch_size = self.mean.shape[0]
+            std = mx.random.normal((batch_size,), dtype=self.mean.dtype) * std_scale
+            while std.ndim < self.mean.ndim:
+                std = mx.expand_dims(std, axis=-1)
+            x = self.mean + std * mx.random.normal(
+                self.mean.shape, dtype=self.mean.dtype
+            )
+            return x, std
+        return self.mean, self.std
+
+
+class TokenizerEncoder(nn.Module):
+    """Encoder that converts waveform audio to acoustic latents."""
+
+    def __init__(self, config: AcousticTokenizerConfig):
+        super().__init__()
+
+        self.dimension = config.vae_dim
+        self.channels = config.channels
+        self.n_filters = config.encoder_n_filters
+        # Match upstream: downsampling uses reversed ratios.
+        self.ratios = list(reversed(config.encoder_ratios))
+        self.depths = (
+            [int(d) for d in config.encoder_depths.split("-")]
+            if isinstance(config.encoder_depths, str)
+            else list(config.encoder_depths)
+        )
+        self.n_stages = len(self.depths)
+
+        self.downsample_layers = []
+        self.downsample_layers.append(
+            [
+                StemConv(
+                    in_channels=self.channels,
+                    out_channels=self.n_filters,
+                    kernel_size=7,
+                    bias=config.conv_bias,
+                )
+            ]
+        )
+
+        for i in range(len(self.ratios)):
+            in_ch = self.n_filters * (2**i)
+            out_ch = self.n_filters * (2 ** (i + 1))
+            ratio = self.ratios[i]
+            self.downsample_layers.append(
+                [
+                    DownsampleLayer(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        kernel_size=ratio * 2,
+                        stride=ratio,
+                        bias=config.conv_bias,
+                    )
+                ]
+            )
+
+        self.stages = []
+        for i in range(self.n_stages):
+            in_ch = self.n_filters * (2**i)
+            stage_blocks = []
+            for _ in range(self.depths[i]):
+                stage_blocks.append(
+                    Block1D(
+                        dim=in_ch,
+                        layernorm=config.layernorm,
+                        eps=config.layernorm_eps,
+                        causal=config.causal,
+                        bias=config.conv_bias,
+                        layer_scale_init_value=config.layer_scale_init_value,
+                    )
+                )
+            self.stages.append(stage_blocks)
+
+        self.norm = (
+            nn.Identity()
+            if config.disable_last_norm
+            else ConvRMSNorm(in_ch, eps=config.layernorm_eps)
+        )
+        self.head = HeadConv(
+            in_channels=in_ch,
+            out_channels=self.dimension,
+            kernel_size=7,
+            bias=config.conv_bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache=None,
+    ) -> mx.array:
+        # x: (B, 1, T)
+        for i in range(self.n_stages):
+            x = self.downsample_layers[i][0](x, cache=cache)
+            for block in self.stages[i]:
+                x = block(x, cache=cache)
+
+        x = self.norm(x)
+        x = self.head(x, cache=cache)  # (B, D, T')
+        return mx.transpose(x, (0, 2, 1))  # (B, T', D)
+
+
+class TokenizerDecoder(nn.Module):
+    """Decoder that converts latent representations back to audio.
+
+    Architecture matches HuggingFace VibeVoice structure:
+    - upsample_layers[0] is stem conv
+    - upsample_layers[1-6] are transposed convolutions
+    - stages[0-6] are transformer blocks
+    - head is output convolution
+    """
+
+    def __init__(self, config: AcousticTokenizerConfig):
+        super().__init__()
+
+        self.dimension = config.vae_dim
+        self.channels = config.channels
+        self.n_filters = (
+            config.decoder_n_filters
+            if config.decoder_n_filters
+            else config.encoder_n_filters
+        )
+
+        # Use decoder ratios or fallback to encoder ratios
+        self.ratios = (
+            config.decoder_ratios if config.decoder_ratios else config.encoder_ratios
+        )
+
+        # Parse depths - should be reversed encoder depths for decoder
+        if config.decoder_depths:
+            if isinstance(config.decoder_depths, str):
+                self.depths = [int(d) for d in config.decoder_depths.split("-")]
+            else:
+                self.depths = config.decoder_depths
+        else:
+            if isinstance(config.encoder_depths, str):
+                encoder_depths = [int(d) for d in config.encoder_depths.split("-")]
+            else:
+                encoder_depths = config.encoder_depths
+            self.depths = list(reversed(encoder_depths))
+
+        self.causal = config.causal
+        self.n_stages = len(self.depths)
+
+        # Upsample layers - wrapped in list structure to match HF naming
+        # HF: upsample_layers.X.0.conv or upsample_layers.X.0.convtr
+        self.upsample_layers = []
+
+        # First upsample layer is stem conv (upsample_layers.0.0.conv)
+        stem_out_ch = self.n_filters * (2 ** (self.n_stages - 1))
+        self.upsample_layers.append(
+            [
+                StemConv(
+                    in_channels=self.dimension,
+                    out_channels=stem_out_ch,
+                    kernel_size=7,
+                    bias=config.conv_bias,
+                )
+            ]
+        )
+
+        # Remaining upsample layers are transposed convolutions
+        for i in range(len(self.ratios)):
+            in_ch = self.n_filters * (2 ** (self.n_stages - 1 - i))
+            out_ch = (
+                self.n_filters * (2 ** (self.n_stages - 2 - i))
+                if i < len(self.ratios) - 1
+                else self.n_filters
+            )
+
+            self.upsample_layers.append(
+                [
+                    UpsampleLayer(
+                        in_channels=in_ch,
+                        out_channels=out_ch,
+                        kernel_size=self.ratios[i] * 2,
+                        stride=self.ratios[i],
+                        bias=config.conv_bias,
+                    )
+                ]
+            )
+
+        # Transformer stages
+        self.stages = []
+        for i in range(self.n_stages):
+            in_ch = self.n_filters * (2 ** (self.n_stages - 1 - i))
+            stage_blocks = []
+            for _ in range(self.depths[i]):
+                stage_blocks.append(
+                    Block1D(
+                        dim=in_ch,
+                        layernorm=config.layernorm,
+                        eps=config.layernorm_eps,
+                        causal=config.causal,
+                        bias=config.conv_bias,
+                        layer_scale_init_value=config.layer_scale_init_value,
+                    )
+                )
+            self.stages.append(stage_blocks)
+
+        # Output head
+        self.head = HeadConv(
+            in_channels=self.n_filters,
+            out_channels=config.channels,
+            kernel_size=7,
+            bias=config.conv_bias,
+        )
+
+    def __call__(
+        self,
+        x: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        """
+        Args:
+            x: Latent tensor of shape (B, T, D) or (B, D, T)
+
+        Returns:
+            Audio tensor of shape (B, 1, T')
+        """
+        # Ensure x is in (B, D, T) format
+        if x.shape[1] != self.dimension:
+            x = mx.transpose(x, (0, 2, 1))
+
+        # Apply stem (first upsample layer)
+        x = self.upsample_layers[0][0](x, cache=cache)
+
+        # Process through stages and upsampling
+        for i in range(self.n_stages):
+            # Apply stage blocks
+            for block in self.stages[i]:
+                x = block(x, cache=cache)
+
+            # Apply upsampling (skip first upsample which was stem)
+            if i + 1 < len(self.upsample_layers):
+                x = self.upsample_layers[i + 1][0](x, cache=cache)
+
+        # Output head
+        x = self.head(x, cache=cache)
+
+        return x
+
+
+class AcousticTokenizer(nn.Module):
+    """Waveform decoder with an optional reference-audio encoder."""
+
+    def __init__(self, config: AcousticTokenizerConfig, include_encoder: bool = False):
+        super().__init__()
+        self.config = config
+        self.fix_std = config.fix_std
+        self.std_dist_type = config.std_dist_type
+        if include_encoder:
+            self.encoder = TokenizerEncoder(config)
+        self.decoder = TokenizerDecoder(config)
+
+    def encode(self, audio: mx.array) -> TokenizerEncoderOutput:
+        if audio.ndim == 1:
+            audio = audio[None, None, :]
+        elif audio.ndim == 2:
+            audio = audio[:, None, :]
+        return TokenizerEncoderOutput(self.encoder(audio), self.fix_std)
+
+    def decode(
+        self,
+        latents: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        """Convert latent representations to audio.
+
+        Args:
+            latents: Latent tensor of shape (B, T, D) where D = vae_dim
+
+        Returns:
+            Audio tensor of shape (B, 1, T')
+        """
+        if latents.ndim != 3 or latents.shape[-1] != self.decoder.dimension:
+            raise ValueError(
+                "AcousticTokenizer.decode expects latents with shape (B, T, D) "
+                f"where D={self.decoder.dimension}; received {latents.shape}"
+            )
+
+        latents = mx.transpose(latents, (0, 2, 1))
+        return self.decoder(latents, cache=cache)
+
+    def __call__(
+        self,
+        latents: mx.array,
+        cache: Optional[MutableMapping[str, mx.array]] = None,
+    ) -> mx.array:
+        """Alias for decode."""
+        return self.decode(latents, cache=cache)

@@ -1,0 +1,389 @@
+"""Tests for the Nemotron 3.5 ASR MLX model.
+
+The lightweight tests build a tiny randomly-initialized model and exercise the
+config/shape/mask/tokenizer logic without any download. The integration test is
+gated behind the ``requires_weights`` marker and an env var pointing at a
+converted MLX model directory.
+"""
+
+import math
+import os
+
+import mlx.core as mx
+import mlx.nn as nn
+import numpy as np
+import pytest
+from mlx.utils import tree_flatten
+
+from mlx_audio.stt.models.nemotron_asr import (
+    ConformerStreamingState,
+    Model,
+    ModelConfig,
+    StreamingLogMelSpectrogram,
+)
+from mlx_audio.stt.models.nemotron_asr import tokenizer as tok
+from mlx_audio.stt.models.nemotron_asr.audio import (
+    _padded_window,
+    _power_to_log_mel,
+    _preemphasize,
+    iter_log_mel_spectrogram,
+    log_mel_spectrogram,
+)
+from mlx_audio.stt.models.nemotron_asr.conformer import create_chunked_limited_mask
+from mlx_audio.stt.models.nemotron_asr.rnnt import GreedyDecoderState
+from mlx_audio.utils import stft
+
+
+def _tiny_config() -> dict:
+    vocab = ["<unk>", "<en-US>", "▁hello", "▁world", "!", "a", "b", "c"]
+    return {
+        "model_type": "nemotron_asr",
+        "preprocessor": {"features": 80, "n_fft": 512, "normalize": "NA"},
+        "encoder": {
+            "feat_in": 80,
+            "n_layers": 2,
+            "d_model": 32,
+            "n_heads": 2,
+            "ff_expansion_factor": 2,
+            "subsampling_factor": 8,
+            "subsampling_conv_channels": 8,
+            "conv_kernel_size": 9,
+            "causal_downsampling": True,
+            "conv_context_size": "causal",
+            "conv_norm_type": "layer_norm",
+            "att_context_style": "chunked_limited",
+            "att_context_size": [[56, 13]],
+            "pos_emb_max_len": 500,
+            "use_bias": False,
+        },
+        "prompt": {
+            "num_prompts": 4,
+            "prompt_hidden": 16,
+            "prompt_dictionary": {"en-US": 0, "auto": 1},
+        },
+        "decoder": {
+            "pred_hidden": 16,
+            "pred_rnn_layers": 2,
+            "vocab_size": len(vocab),
+            "blank_as_pad": True,
+        },
+        "joint": {
+            "joint_hidden": 16,
+            "activation": "relu",
+            "encoder_hidden": 32,
+            "pred_hidden": 16,
+            "num_classes": len(vocab),
+        },
+        "vocabulary": vocab,
+        "default_language": "auto",
+        "default_att_context_size": [56, 13],
+        "max_symbols": 5,
+    }
+
+
+def _build_tiny() -> Model:
+    model = Model(ModelConfig.from_dict(_tiny_config()))
+    mx.eval(model.parameters())
+    model.eval()
+    return model
+
+
+def test_config_roundtrip():
+    cfg = ModelConfig.from_dict(_tiny_config()).config
+    assert cfg.encoder.n_layers == 2
+    assert cfg.encoder.causal_downsampling is True
+    assert cfg.prompt.num_prompts == 4
+    assert cfg.decoder.vocab_size == len(cfg.vocabulary)
+    assert cfg.prompt.prompt_dictionary["en-US"] == 0
+
+
+def test_chunked_limited_mask():
+    # left=2, right=1 -> chunk_size=2, left_chunks=2//2=1: a frame sees its chunk + 1 prior chunk.
+    mask = create_chunked_limited_mask(6, left_context=2, right_context=1)
+    visible = np.array(mask[0, 0]) == 0.0
+    # frame 0 (chunk 0): only chunk 0 -> frames 0,1
+    assert visible[0].tolist() == [True, True, False, False, False, False]
+    # frame 2 (chunk 1): chunks 0 and 1 -> frames 0..3
+    assert visible[2].tolist() == [True, True, True, True, False, False]
+    # frame 5 (chunk 2): chunks 1 and 2 -> frames 2..5 (chunk 0 now out of left window)
+    assert visible[5].tolist() == [False, False, True, True, True, True]
+
+
+def test_chunked_log_mel_matches_full():
+    args = ModelConfig.from_dict(_tiny_config()).config.preprocessor
+    audio = mx.array(
+        (np.random.randn(args.sample_rate * 2 + 123) * 0.1).astype(np.float32)
+    )
+
+    full = log_mel_spectrogram(audio, args)
+    chunked = mx.concatenate(
+        list(iter_log_mel_spectrogram(audio, args, chunk_frames=37)),
+        axis=1,
+    )
+    np.testing.assert_allclose(np.array(chunked), np.array(full), rtol=1e-3, atol=1e-3)
+
+
+def test_log_mel_uses_nemo_reflect_padding():
+    args = ModelConfig.from_dict(_tiny_config()).config.preprocessor
+    audio = mx.array(np.linspace(-0.5, 0.75, args.n_fft * 2, dtype=np.float32))
+    window = _padded_window(args)
+    emphasized = _preemphasize(audio, args)
+
+    def features(pad_mode):
+        spectrum = stft(
+            emphasized,
+            args.n_fft,
+            args.hop_length,
+            args.n_fft,
+            window,
+            pad_mode=pad_mode,
+        )
+        power = mx.square(mx.abs(spectrum)).astype(audio.dtype)
+        return _power_to_log_mel(power, args, audio.dtype)
+
+    actual = log_mel_spectrogram(audio, args)
+    reflected = features("reflect")
+    zero_padded = features("constant")
+    np.testing.assert_allclose(np.array(actual), np.array(reflected), atol=1e-6)
+    assert not np.allclose(
+        np.array(actual[:, 0]),
+        np.array(zero_padded[:, 0]),
+        rtol=1e-3,
+        atol=1e-3,
+    )
+
+
+def test_log_mel_supports_hf_constant_padding():
+    args = ModelConfig.from_dict(_tiny_config()).config.preprocessor
+    args.pad_mode = "constant"
+    audio = mx.array(np.linspace(-0.5, 0.75, args.n_fft * 2, dtype=np.float32))
+    full = log_mel_spectrogram(audio, args)
+    chunked = mx.concatenate(
+        list(iter_log_mel_spectrogram(audio, args, chunk_frames=7)), axis=1
+    )
+    np.testing.assert_allclose(np.array(chunked), np.array(full), atol=1e-6)
+
+
+def test_streaming_log_mel_matches_full_with_bounded_state():
+    args = ModelConfig.from_dict(_tiny_config()).config.preprocessor
+    audio = mx.array(
+        (np.random.randn(args.sample_rate * 2 + 123) * 0.1).astype(np.float32)
+    )
+    frontend = StreamingLogMelSpectrogram(args)
+    chunks = []
+    for start in range(0, audio.shape[0], 937):
+        chunks.append(frontend.push(audio[start : start + 937]))
+        assert frontend.buffered_samples <= args.n_fft + 937
+    chunks.append(frontend.flush())
+
+    streamed = mx.concatenate(chunks, axis=1)
+    full = log_mel_spectrogram(audio, args)
+    np.testing.assert_allclose(np.array(streamed), np.array(full), rtol=1e-3, atol=1e-3)
+
+
+def test_voicechat_style_frontend_and_conformer_state_tracks_bounded_encoder():
+    rng = np.random.default_rng(0)
+    config = _tiny_config()
+    config["encoder"]["att_context_size"] = [[56, 0]]
+    config["default_att_context_size"] = [56, 0]
+    model = Model(ModelConfig.from_dict(config))
+    # Explicit weights keep the fixture independent of MLX initializer defaults.
+    weight_rng = np.random.default_rng(0)
+    for _, layer in sorted(
+        tree_flatten(model.encoder.leaf_modules(), is_leaf=nn.Module.is_module)
+    ):
+        if isinstance(layer, (nn.Linear, nn.Conv1d, nn.Conv2d)):
+            fan_in = math.prod(layer.weight.shape[1:]) * getattr(layer, "groups", 1)
+            bound = math.sqrt(1 / fan_in)
+            layer.weight = mx.array(
+                weight_rng.uniform(-bound, bound, layer.weight.shape).astype(np.float32)
+            )
+            if "bias" in layer:
+                layer.bias = mx.zeros_like(layer.bias)
+    mx.eval(model.encoder.parameters())
+    model.eval()
+
+    args = model.preprocessor_config
+    frame_samples = 1280
+    frontend = StreamingLogMelSpectrogram(
+        args,
+        lookahead_samples=frame_samples,
+    )
+    state = ConformerStreamingState(model.encoder, att_context_size=[56, 0])
+    audio = mx.zeros((0,), dtype=mx.float32)
+
+    for _ in range(4):
+        frame = mx.array((rng.standard_normal(frame_samples) * 0.1).astype(np.float32))
+        audio = mx.concatenate([audio, frame])
+        mel = frontend.push(frame)
+        outputs = state.push(mel, emit_partial=True)
+        assert len(outputs) == 1
+        assert outputs[0].shape[1] == 1
+
+        full_mel = log_mel_spectrogram(audio, args)
+        bounded, _ = model.encoder(full_mel, att_context_size=[56, 0])
+        error = np.abs(np.array(outputs[0]) - np.array(bounded[:, -2:-1]))
+        # Different matmul shapes introduce small floating-point drift, while the
+        # causal frame and all persistent state remain aligned.
+        assert float(error.max()) < 0.03
+        assert float(error.mean()) < 0.01
+
+
+def test_encoder_and_prompt_shapes():
+    model = _build_tiny()
+    d_model = model.encoder_config.d_model
+    # ~1s of fake mel: (1, T, 80)
+    mel = mx.array(np.random.randn(1, 200, 80).astype(np.float32))
+    enc, lengths = model.encoder(mel, att_context_size=[56, 13])
+    assert enc.shape[0] == 1 and enc.shape[2] == d_model
+    # subsampling factor 8 -> roughly T/8 frames
+    assert enc.shape[1] == int(lengths[0])
+    assert abs(enc.shape[1] - math.ceil(200 / 8)) <= 2
+
+    prompted = model.apply_prompt(enc, "en-US")
+    assert prompted.shape == enc.shape  # projected back to d_model
+
+
+def test_decode_runs_and_is_clean():
+    model = _build_tiny()
+    mel = mx.array(np.random.randn(1, 120, 80).astype(np.float32))
+    result = model.decode(mel, language="auto")
+    assert hasattr(result, "text")
+    # special tokens (e.g. <en-US>, <unk>) never leak into the decoded text.
+    assert "<" not in result.text
+
+
+def _total_tokens(result) -> int:
+    return sum(len(sentence.tokens) for sentence in result.sentences)
+
+
+def test_stream_generate_runs_and_is_clean():
+    model = _build_tiny()
+    sr = model.preprocessor_config.sample_rate
+    # ~2.5s of fake waveform -> several native chunks.
+    audio = mx.array((np.random.randn(int(2.5 * sr)) * 0.1).astype(np.float32))
+
+    results = list(model.stream_generate(audio, language="auto"))
+    assert len(results) >= 1
+    # cumulative: the hypothesis only grows, so token count never decreases.
+    counts = [_total_tokens(r) for r in results]
+    assert counts == sorted(counts)
+    # special tokens (e.g. <en-US>, <unk>) never leak into any chunk's text.
+    assert all("<" not in r.text for r in results)
+
+
+def test_stream_matches_offline():
+    # Cache-aware streaming tracks the offline chunked_limited encoder closely at
+    # the native chunk size, so the greedy decode must be identical.
+    model = _build_tiny()
+    sr = model.preprocessor_config.sample_rate
+    audio = mx.array((np.random.randn(int(2.5 * sr)) * 0.1).astype(np.float32))
+
+    offline = model.generate(audio, language="auto")
+    streamed = list(model.stream_generate(audio, language="auto"))[-1]
+    assert streamed.text == offline.text
+
+
+def test_tokenizer_decode_and_lang_tags():
+    vocab = ["<unk>", "<en-US>", "▁hello", "▁world", "!", "<"]
+    assert tok.is_lang_tag("<en-US>") and not tok.is_lang_tag("<")
+    assert tok.is_special_token(1, vocab) and not tok.is_special_token(2, vocab)
+    # ids: <en-US>, ▁hello, ▁world, !  -> "hello world!" with lang tag stripped
+    assert tok.decode([1, 2, 3, 4], vocab) == " hello world!"
+    assert (
+        tok.decode([1, 2, 3, 4], vocab, strip_lang_tags=False) == "<en-US> hello world!"
+    )
+    assert tok.detected_language([1, 2, 3], vocab) == "en-US"
+
+
+def _scripted_predictor(tokens, max_symbols=2):
+    model = _build_tiny()
+    model.max_symbols = max_symbols
+    calls, joints = [], []
+    predictions = iter(tokens)
+
+    def predictor(token, hidden):
+        calls.append(None if token is None else int(token.item()))
+        state = 0.0 if hidden is None else float(hidden[0][0, 0, 0].item())
+        output = mx.full((1, 1, 16), state)
+        next_state = mx.full((2, 1, 16), state + 1)
+        return output, (next_state, next_state)
+
+    def joint(feature, prediction):
+        joints.append((float(prediction[0, 0, 0].item()), prediction.dtype))
+        token = next(predictions)
+        return mx.array([float(i == token) for i in range(model.blank_id + 1)])
+
+    model.decoder = predictor
+    model.joint = joint
+    return model, calls, joints
+
+
+@pytest.mark.parametrize("dtype", [mx.float32, mx.float16])
+def test_greedy_predictor_reused_across_blanks_and_chunks(dtype):
+    blank = len(_tiny_config()["vocabulary"])
+    model, calls, joints = _scripted_predictor(
+        [blank, blank, 1, 2, blank, blank, 3, blank]
+    )
+    decoder = GreedyDecoderState(model)
+    features = mx.zeros((1, 6, 32), dtype=dtype)
+    assert decoder.decode(features[:, :0], 0) == []
+    assert calls == []
+    assert decoder.decode(features[:, :2], 0) == []
+    tokens = decoder.decode(features[:, 2:], 2)
+    assert [(t.id, t.start, t.duration) for t in tokens] == [
+        (2, 0.16, 0.08),
+        (3, 0.4, 0.08),
+    ]
+    assert decoder.last_token == 3
+    assert np.all(np.array(decoder.hidden[0]) == 3)
+    assert [value for value, _ in joints] == [0, 0, 0, 1, 2, 2, 2, 3]
+    assert all(actual_dtype == dtype for _, actual_dtype in joints)
+    assert calls == [None, 1, 2, 3]
+
+
+def test_nonchunked_decode_reuses_predictor_and_respects_encoded_length():
+    blank = len(_tiny_config()["vocabulary"])
+    model, calls, joints = _scripted_predictor([blank] * 4)
+    model.encoder_config.att_context_style = "regular"
+    model.encoder = lambda mel, **kwargs: (mx.zeros((1, 6, 32)), mx.array([4]))
+    model.apply_prompt = lambda encoded, language: encoded
+    assert model.decode(mx.zeros((1, 10, 80))).text == ""
+    assert len(joints) == 4
+    assert calls == [None]
+
+
+def test_live_predictor_cache_survives_steps_and_resets():
+    blank = len(_tiny_config()["vocabulary"])
+    model, calls, joints = _scripted_predictor([blank, blank, 2, blank, blank])
+    session = model.create_streaming_session()
+    session._encoded.append(mx.zeros((1, 4, 32)))
+    session._flushed = True
+    parts = []
+    while not session.done:
+        parts.extend(session.step(max_decode_tokens=1))
+    assert parts == ["hello"]
+    assert [value for value, _ in joints] == [0, 0, 0, 1, 1]
+    assert calls == [None, 2]
+    session.reset()
+    model.joint = lambda feature, prediction: mx.array([0.0] * blank + [1.0])
+    session._encoded.append(mx.zeros((1, 1, 32)))
+    session._flushed = True
+    assert session.step() == []
+    assert session.done
+    assert calls == [None, 2, None]
+
+
+@pytest.mark.requires_weights
+def test_real_model_transcribes():
+    path = os.environ.get("NEMOTRON_ASR_MLX_PATH")
+    if not path:
+        pytest.skip("set NEMOTRON_ASR_MLX_PATH to a converted MLX model directory")
+    from mlx_audio.stt import load
+
+    model = load(path)
+    audio = os.environ.get("NEMOTRON_ASR_TEST_AUDIO")
+    if not audio:
+        pytest.skip("set NEMOTRON_ASR_TEST_AUDIO to a wav file")
+    result = model.generate(audio, language="auto")
+    assert result.text.strip()
