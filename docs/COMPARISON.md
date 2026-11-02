@@ -32,6 +32,7 @@
 12. **VoiceStudio** — voice-side ideas (room-tone pauses, forced word alignment, signal checks); default engine non-commercial.
 13. **mlx-audio** — the library our Kokoro narration already runs on; adds TTS word timestamps, forced alignment, VAD.
 14. **chatterbox** — expressive cloning TTS with delivery controls; benchmark only (watermarked, no preset voices).
+15. **motionmaxxing** — measured motion numbers, 12 eases, cut anatomy and render gates (sound/imagegen side skipped).
 
 ## Sound repos (9–11)
 
@@ -58,3 +59,18 @@
 | **Agent skill included** | `skills/` (voicestudio, voicestudio-maintainer) + MCP at `/mcp` | – (CLI, Python API, OpenAI-compatible server) | – (examples + Gradio apps) |
 | **Synthesis?** | Voice is TTS by design (our narration already is: Kokoro); no SFX synthesis | TTS by design (Kokoro = our narrator); music generation available but off-limits | TTS by design; Perth watermark on every output |
 | **Best single takeaway** | Room-tone pause fill + WhisperX ±10–30 ms word alignment | Kokoro `start_ts`/`end_ts`: word times straight from the TTS | `exaggeration` ↔ `cfg_weight` pacing trade-off; watermark detector for QA |
+
+## Motion repo (15)
+
+| | motionmaxxing |
+|---|---|
+| **Author** | Tejas Makwana |
+| **License** | Apache-2.0 (bundled GSAP: GreenSock Standard licence; three.js MIT) |
+| **Render engine** | HTML + headless Chrome (CDP) + ffmpeg |
+| **Language** | JS (Node 22) + Python (stdlib) |
+| **Fully free / local?** | ✅ core; ElevenLabs sound and Codex imagegen paid/optional |
+| **Agent skill included** | SKILL.md + 13 references + taste layer |
+| **Motion** | ⭐⭐⭐ 4,288 measured moves, 12 fitted eases, stagger/overshoot stats |
+| **Transitions** | ⭐⭐⭐ cut anatomy, carried-object match cuts, effect-becomes-scene |
+| **QA / self-review** | ⭐⭐⭐ look.py (G0/G2/G3), lint.mjs (G5), blind review page |
+| **Best single takeaway** | Land decelerates (softLand ~12 f), leave accelerates (accelExit ~13 f); move, don't fade |

@@ -41,3 +41,8 @@ Status: ✅ shipped in [`kit/`](../kit) · 🔜 next · 💡 later.
 | 34 | DeepFilterNet / SAM-Audio cleanup of real CC0 SFX recordings | Cleaner real SFX, still real | M | mlx-audio `sts` | 💡 |
 | 35 | Perth watermark probe on every final mix (prove no watermarked third-party TTS slipped in) | Clean provenance | S | chatterbox `perth` | 💡 |
 | 36 | Owner-gated A/B: one script via mlx-audio Chatterbox (consented reference, exaggeration 0.5/0.7, cfg 0.3–0.5) vs Kokoro | Evidence before any narrator change | M | chatterbox, mlx-audio | 💡 |
+| 37 | **Port the 12 measured eases** to `kit/remotion/eases.ts`; defaults softLand 12 f in, accelExit 13 f out, crashIn 10 f for slams | Directed, not "animated", motion | S | motionmaxxing `runtime/motion.js` | 🔜 |
+| 38 | **`look.py` gates in post-render QA**: frozen runs > 3 f (read as a question in planned pauses), end hold ≤ 1.4 s | Catches dead frames and overstayed endings | S | motionmaxxing `look.py` | 🔜 |
+| 39 | Labels/dates pop 2–5 f before their spoken word (captions stay on the word) | Picture leads, voice confirms | S | motionmaxxing `sync.mjs` | 💡 |
+| 40 | Cut anatomy on torn-paper wipes: outgoing scene accelerates into the tear, incoming already moving; handoff table per boundary | Seamless continuous scenes | M | motionmaxxing `transitions.md` | 💡 |
+| 41 | Blind A/B page for the v2 vs v3 decision, next to likes | Real-eye verdict | S | motionmaxxing `blind_review.py` | 💡 |

@@ -18,5 +18,6 @@ Each folder in `repos/` is a full copy of the upstream repo at the commit that w
 | `VoiceStudio` | https://github.com/debpalash/VoiceStudio.git | `1a29929cb87f8ff1470271e6498f0694d395f54d` |
 | `mlx-audio` | https://github.com/Blaizzy/mlx-audio.git | `65b6a39b389c1564549982844b0473ec8a6a6a6b` |
 | `chatterbox` | https://github.com/resemble-ai/chatterbox.git | `5de7a54aa4e5e2baadb0182dde554908b48b85c2` |
+| `motionmaxxing` | https://github.com/Tejashmakwana/motionmaxxing.git | `8c8ec0f2a6f6c9a0da15cd24f7b1298ab298368c` |
 
-Notes: `VoiceStudio` excludes its 6 demo `.mp4` files (this repo ignores `*.mp4`) and the uninitialised `omnivoice-gallery` submodule.
+Notes: `motionmaxxing` excludes its 4 showcase `docs/media/*.mp4` files (GIF versions kept). `VoiceStudio` excludes its 6 demo `.mp4` files (this repo ignores `*.mp4`) and the uninitialised `omnivoice-gallery` submodule.

@@ -1,4 +1,4 @@
-# Quality checklist — numbers collected from all fourteen repos
+# Quality checklist — numbers collected from all fifteen repos
 
 Use as a pre-delivery gate. Source in brackets.
 
@@ -20,6 +20,10 @@ Use as a pre-delivery gate. Source in brackets.
 - [ ] No one-frame flashes at handoffs *(hypit review)*
 - [ ] Motion blur only on snaps/whips/slams, 1–3 per piece, never on text being read *(hyperframes)*; > 80 px/frame needs blur *(onetake)*
 - [ ] Seeded, deterministic randomness *(onetake, ClaudeAnimationBase)*
+- [ ] Entries ≈ 12 f ease-out (softLand), exits ≈ 13 f accelerating (accelExit); opacity only a 4–6 f helper; nothing grows from zero *(motionmaxxing)*
+- [ ] Sibling stagger 1–3 f with uneven gaps, tails overlapping; overshoot on < 1 in 8 moves and late (peak t ≈ 0.7) *(motionmaxxing)*
+- [ ] No run of > 3 frozen frames outside a designed breath (0.6–1.5 s, one living thing on it); end hold ≤ 1.4 s *(motionmaxxing look.py G2/G3)*
+- [ ] No page chrome: no corner labels, counters, kicker-over-headline, letter-typed headlines *(motionmaxxing G5)*
 
 ## Text & captions
 - [ ] Vertical: 3–4 words / ≤ 20 chars per cue; horizontal 6–8 words / ≤ 42 chars *(OpenMontage)*
